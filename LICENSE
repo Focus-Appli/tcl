@@ -1,0 +1,23 @@
+Copyright (c) 2026 Grégory Vandenbruggen. Tous droits réservés.
+
+Ce dépôt contient le code source de l'application « Focus » : fichiers HTML,
+service worker, scripts Google Apps Script, ainsi que sa conception, son
+architecture, ses écrans et ses textes.
+
+Ce logiciel n'est PAS distribué sous licence libre. Il est rendu visible
+uniquement parce que son hébergement l'exige. Aucune licence, expresse ou
+implicite, n'est accordée par sa publication.
+
+Sauf autorisation écrite et préalable de l'auteur, il est interdit de copier,
+reproduire, modifier, adapter, traduire, distribuer, vendre, louer, héberger
+pour un tiers ou exploiter tout ou partie de ce logiciel, quel que soit le
+procédé.
+
+Toute utilisation non autorisée constitue une contrefaçon, sanctionnée par les
+articles L122-4 et L335-2 et suivants du Code de la propriété intellectuelle.
+
+Les données saisies dans l'application par les organisations qui l'utilisent
+restent leur propriété. Les marques et logos cités appartiennent à leurs
+titulaires respectifs.
+
+Contact pour toute demande d'autorisation : Grégory Vandenbruggen.
