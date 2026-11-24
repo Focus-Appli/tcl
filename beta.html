@@ -3549,6 +3549,77 @@ var MODS = {
 // Ordre d'import du pack complet : les référentiels avant ce qui s'en sert
 var MODS_ORDRE = ['parametres', 'typologies', 'secteurs', 'enseignes', 'categories', 'pdv', 'comptes', 'outils', 'tableurs', 'messages', 'plv', 'promos', 'quiz'];
 
+// ══════════════════════════════════════════════════════════════════════
+// JEU DE LA SEMAINE — banque de questions : modèle, export et import Excel (manager)
+// La banque n'est jamais envoyée aux téléphones des joueurs (elle contient les bonnes
+// réponses) : le manager la charge à la demande (action read / jeuBanque).
+// ══════════════════════════════════════════════════════════════════════
+var BANQUE_COLS = ['id', 'question', 'repA', 'repB', 'repC', 'repD', 'bonne', 'categorie', 'statut'];
+var _banqueJeu = null;
+function chargerBanque() {
+  return apiPostJSON({ action: 'read', what: 'jeuBanque' }).then(function(res) {
+    if (!res || res.status !== 'ok') throw new Error((res && res.message) || 'banque illisible — mettez à jour l\'Apps Script puis « Nouvelle version »');
+    _banqueJeu = (res.lignes || []).map(function(l) {
+      var o = {}; BANQUE_COLS.forEach(function(k) { o[k] = l[k] === undefined || l[k] === null ? '' : String(l[k]).trim(); });
+      return o;
+    });
+    return _banqueJeu;
+  });
+}
+MODS.banque = {
+  titre: 'Jeu — banque de questions', onglet: 'Banque', icone: '🎯', remplacable: true,
+  aideOnglet: 'Une ligne par question du jeu de la semaine. Chaque semaine, le jeu tire 10 questions parmi les lignes dont le statut n’est pas « off ». Une ligne dont l’identifiant existe déjà met la question à jour ; sinon elle est ajoutée.',
+  cols: [
+    { k: 'id', t: 'Identifiant', ex: 'q001', aide: 'Facultatif : laissé vide, il est créé automatiquement. Ne pas le changer une fois la question jouée (les statistiques s’y rattachent).' },
+    { k: 'question', t: 'Question', oblig: true, type: 'texte', ex: 'Quelle est la vitesse d’impression ?' },
+    { k: 'repA', t: 'Réponse A', oblig: true, ex: '10 ppm' },
+    { k: 'repB', t: 'Réponse B', oblig: true, ex: '15 ppm' },
+    { k: 'repC', t: 'Réponse C', ex: '20 ppm' },
+    { k: 'repD', t: 'Réponse D', ex: '' },
+    { k: 'bonne', t: 'Bonne réponse', oblig: true, ex: 'B', aide: 'A, B, C ou D (ou 1 à 4)' },
+    { k: 'categorie', t: 'Catégorie', ex: 'Produits' },
+    { k: 'statut', t: 'Statut', type: 'choix', options: ['ok', 'off'], defaut: 'ok', ex: 'ok', aide: 'off = question retirée du jeu sans être supprimée' }
+  ],
+  lire: function() { return _banqueJeu || []; },
+  verifier: function(l) {
+    var b = String(l.bonne || '').trim().toUpperCase();
+    if (/^[1-4]$/.test(b)) b = 'ABCD'.charAt(Number(b) - 1);
+    var i = 'ABCD'.indexOf(b);
+    if (b.length !== 1 || i < 0) return 'bonne réponse invalide (A, B, C ou D)';
+    if (!String(l['rep' + b] || '').trim()) return 'la bonne réponse ' + b + ' est vide';
+    return '';
+  },
+  ecrire: function(lignes, remplacer) {
+    if (!navigator.onLine) return Promise.reject(new Error('hors ligne'));
+    // On relit la banque du serveur : l'envoi remplace tout l'onglet, il doit partir de l'état réel
+    return chargerBanque().then(function(actuelle) {
+      var liste = remplacer ? [] : actuelle.map(function(x) { return Object.assign({}, x); });
+      var pris = {}; liste.forEach(function(x) { pris[x.id] = true; });
+      var n = Date.now();
+      lignes.forEach(function(l) {
+        var o = {}; BANQUE_COLS.forEach(function(k) { o[k] = String(l[k] === undefined || l[k] === null ? '' : l[k]).trim(); });
+        var b = o.bonne.toUpperCase(); if (/^[1-4]$/.test(b)) b = 'ABCD'.charAt(Number(b) - 1); o.bonne = b;
+        o.statut = (o.statut || 'ok').toLowerCase();
+        if (!o.id) { do { o.id = 'q' + (n++).toString(36); } while (pris[o.id]); }
+        var ex = liste.filter(function(x) { return x.id === o.id; })[0];
+        if (ex) BANQUE_COLS.forEach(function(k) { ex[k] = o[k]; }); else liste.push(o);
+        pris[o.id] = true;
+      });
+      return envoyerTable('Banque', BANQUE_COLS, liste).then(function(ok) {
+        if (!ok) throw new Error('envoi refusé');
+        _banqueJeu = liste;
+        return true;
+      });
+    });
+  }
+};
+function banqueTelecharger(avecDonnees) {
+  if (!avecDonnees) { telechargerExcel(['banque'], false); return; }
+  showToast('⏳ Chargement de la banque…');
+  chargerBanque().then(function() { telechargerExcel(['banque'], true); })
+    .catch(function(e) { showToast('❌ ' + (e && e.message ? e.message : 'banque illisible')); });
+}
+
 // Écriture générique des listes éditables (typologies, outils, messages, tableurs)
 ['typologies', 'outils', 'messages', 'tableurs'].forEach(function(nom) {
   MODS[nom].ecrire = function(lignes, remplacer) {
@@ -3772,6 +3843,14 @@ function renderParametrage() {
         '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="choisirFichierImport(\'' + nom + '\')">Importer</button>' +
       '</div></div>';
   });
+  h += '<div class="section-label" style="margin-top:18px">🎯 Jeu de la semaine</div>' +
+    '<div class="quiz-card" style="flex-wrap:wrap;cursor:default"><div class="quiz-card-icon">🎯</div>' +
+      '<div class="quiz-card-body"><div class="quiz-card-title">Banque de questions</div><div class="quiz-card-meta">Onglet « Banque » · A, B, C, D + bonne réponse</div></div>' +
+      '<div style="display:flex;gap:6px;width:100%;margin-top:8px">' +
+        '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="banqueTelecharger(false)">Modèle</button>' +
+        '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="banqueTelecharger(true)">Exporter</button>' +
+        '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="choisirFichierImport(\'banque\')">Importer</button>' +
+      '</div></div>';
   c.innerHTML = h;
 }
 
