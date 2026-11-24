@@ -1341,6 +1341,9 @@ window.appliquerMarqueSplash(window.marqueInitiale());
     <!-- Category filters -->
     <div class="section-label">Catégorie</div>
     <div class="promo-filter-bar" id="promo-filter-cats"></div>
+    <!-- Période : chacun masque ce qu'il ne veut pas voir -->
+    <div class="section-label">Afficher</div>
+    <div class="promo-filter-bar" id="promo-filter-periode"></div>
     <!-- Gantt calendar -->
     <div class="promo-calendar-wrap">
       <div class="promo-cal-header">
@@ -10985,7 +10988,30 @@ function initPromoScreen() {
   renderPromoGantt();
 }
 
+// Période des promos affichées (choix du CDS, gardé sur son téléphone) : passées / en cours / à venir
+var PROMO_PERIODES = [['passe', 'Passées'], ['cours', 'En cours'], ['venir', 'À venir']];
+var promoMasque = (function() {
+  try { var v = JSON.parse(localStorage.getItem(PFX + 'promo_masque') || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+})();
+function togglePromoPeriode(k) {
+  var i = promoMasque.indexOf(k);
+  if (i > -1) promoMasque.splice(i, 1); else promoMasque.push(k);
+  try { localStorage.setItem(PFX + 'promo_masque', JSON.stringify(promoMasque)); } catch (e) {}
+  renderPromoFilters(); renderPromoGantt();
+}
+function promoPeriode(p) {
+  var s = parsePromoDate(p.start), e = parsePromoDate(p.end);
+  var t = new Date(); t.setHours(0, 0, 0, 0);
+  if (e < t) return 'passe';
+  if (s > t) return 'venir';
+  return 'cours';
+}
 function renderPromoFilters() {
+  var perWrap = document.getElementById('promo-filter-periode');
+  if (perWrap) perWrap.innerHTML = PROMO_PERIODES.map(function(x) {
+    var on = promoMasque.indexOf(x[0]) === -1;
+    return '<div class="promo-filter-chip' + (on ? ' active' : '') + '" style="' + (on ? '' : 'opacity:0.55;text-decoration:line-through') + '" onclick="togglePromoPeriode(\'' + x[0] + '\')">' + (on ? '👁 ' : '🚫 ') + x[1] + '</div>';
+  }).join('');
   var ensWrap = document.getElementById('promo-filter-enseignes');
   if (ensWrap) {
     var enseignes = ['Toutes'].concat(db.enseignes || []);
@@ -11056,11 +11082,12 @@ function renderPromoGantt() {
     if (endD < monthStart || startD > monthEnd) return false;
     if (promoFilterEnseigne !== 'Toutes' && (!p.enseignes || p.enseignes.indexOf(promoFilterEnseigne) === -1)) return false;
     if (promoFilterCat !== 'Toutes' && p.category !== promoFilterCat) return false;
+    if (promoMasque.indexOf(promoPeriode(p)) > -1) return false;
     return true;
   });
 
   if (!promos.length) {
-    container.innerHTML = '<div class="gantt-empty">Aucune promo pour ce mois / filtre</div>';
+    container.innerHTML = '<div class="gantt-empty">Aucune promo pour ce mois / filtre' + (promoMasque.length ? ' (certaines périodes sont masquées)' : '') + '</div>';
     return;
   }
 
