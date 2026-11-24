@@ -6965,6 +6965,7 @@ function goTo(screenId) {
   var target = document.getElementById(screenId);
   if (!target || (current && current.id === screenId)) return;
 
+  var _retourExplicite = _isGoingBack;
   var goingBack = _isGoingBack || (screenId === 'screen-home');
 
   if (current) {
@@ -6983,13 +6984,15 @@ function goTo(screenId) {
     if (typeof onScreenEnter === 'function') onScreenEnter(screenId);
   }, current ? 80 : 0);
 
-  if (!goingBack) {
-    _screenHistory.push(screenId);
+  if (_retourExplicite) {
+    // goBack / bouton retour Android : l'historique a déjà été dépilé d'un cran
+  } else if (screenId === 'screen-home') {
+    _screenHistory = ['screen-home'];
+  } else {
+    if (_screenHistory[_screenHistory.length - 1] !== screenId) _screenHistory.push(screenId);
     if (!_popstateHandling) {
       history.pushState({screen: screenId}, '', '');
     }
-  } else {
-    _screenHistory.pop();
   }
   _isGoingBack = false;
   _popstateHandling = false;
@@ -7000,8 +7003,20 @@ function goBack() {
     _isGoingBack = true;
     _screenHistory.pop();
     goTo(_screenHistory[_screenHistory.length - 1]);
+  } else {
+    goTo('screen-home');
   }
 }
+// Les boutons « Retour » qui renvoyaient toujours à l'accueil reviennent désormais à l'écran précédent
+document.addEventListener('click', function(e) {
+  var b = e.target && e.target.closest && e.target.closest('[aria-label="Retour"]');
+  if (!b) return;
+  var oc = String(b.getAttribute('onclick') || '').replace(/\\/g, '').replace(/\s+/g, '');
+  if (oc !== "goTo('screen-home')") return;
+  if (_screenHistory.length < 2) return;   // déjà à un niveau de l'accueil : comportement d'origine
+  e.preventDefault(); e.stopImmediatePropagation();
+  goBack();
+}, true);
   // Bouton retour Android — intercepter popstate
 window.addEventListener('popstate', function(e) {
   if (typeof retourIntercepte === 'function' && retourIntercepte()) return;
