@@ -777,7 +777,7 @@ window.appliquerMarqueSplash(window.marqueInitiale());
   .cc-acc-body { padding:0 2px 12px; }
   details.cc-acc.cc-card .cc-acc-body { padding:0 16px 16px; }
 </style>
-<script defer src="libs/xlsx.full.min.js" onerror="var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';document.head.appendChild(s)"></script>
+<script defer src="libs/xlsx.full.min.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.integrity='sha256-yVBhl8r4CaB1tt7h2g02+xnacVj/6KiOewyWxdhiPJk=';s.crossOrigin='anonymous';document.head.appendChild(s)"></script>
 <!-- ═══════ MODE PAYSAGE (v5.9) ═══════ -->
 <style>
   /* Grand écran ou téléphone couché : contenu centré, plus de tuiles par ligne.
@@ -6138,10 +6138,10 @@ var selected = (Array.isArray(ua) ? ua : (ua !== null && ua !== undefined ? [ua]
 var ok = corrects.length > 1
   ? corrects.every(function(c){return selected.includes(c);}) && selected.every(function(s){return corrects.includes(s);})
   : selected.includes(corrects[0]);
-        var answerText = selected.map(function(s){return q.options[s]||'—';}).join(' + ') || '—';
+        var answerText = selected.map(function(s){return escHtml(q.options[s]||'—');}).join(' + ') || '—';
         return '<div class="answer-row">' +
           '<span style="flex-shrink:0">' + (ok?'✅':'❌') + '</span>' +
-          '<span style="flex:1;color:var(--dark-gray)">' + q.text + '</span>' +
+          '<span style="flex:1;color:var(--dark-gray)">' + escHtml(q.text) + '</span>' +
           '<span style="font-weight:600;color:' + (ok?'var(--success)':'var(--brand)') + '">' + answerText + '</span>' +
         '</div>';
       }).join('');
@@ -6723,7 +6723,7 @@ function renderManageSectors() {
   var sectors = getSectors();
   container.innerHTML = sectors.map(function(s, i) {
     return '<div class="quiz-card" style="padding:12px 16px">' +
-      '<div style="flex:1;font-size:14px;font-weight:500">' + s + '</div>' +
+      '<div style="flex:1;font-size:14px;font-weight:500">' + escHtml(s) + '</div>' +
       '<div class="quiz-card-actions">' +
         '<button class="btn-icon danger" onclick="deleteSector(' + i + ')">🗑️</button>' +
       '</div>' +
@@ -6922,10 +6922,10 @@ var selected = (Array.isArray(ua) ? ua : (ua !== null && ua !== undefined ? [ua]
 var ok = corrects.length > 1
   ? corrects.every(function(c){return selected.includes(c);}) && selected.every(function(s){return corrects.includes(s);})
   : selected.includes(corrects[0]);
-        var answerText = selected.map(function(s){return q.options[s]||'—';}).join(' + ') || '—';
+        var answerText = selected.map(function(s){return escHtml(q.options[s]||'—');}).join(' + ') || '—';
         return '<div class="answer-row">' +
           '<span style="flex-shrink:0">' + (ok?'✅':'❌') + '</span>' +
-          '<span style="flex:1;color:var(--dark-gray)">' + q.text + '</span>' +
+          '<span style="flex:1;color:var(--dark-gray)">' + escHtml(q.text) + '</span>' +
           '<span style="font-weight:600;color:' + (ok?'var(--success)':'var(--brand)') + '">' + answerText + '</span>' +
         '</div>';
       }).join('');
@@ -7994,7 +7994,7 @@ function renderMgrDashboard() {
       const avg = Math.round(d.scores.reduce((a,b)=>a+b,0)/d.scores.length);
       const cls = taux>=70?'high':taux>=50?'mid':'low';
       return `<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:6px;padding:11px 14px;border-bottom:1px solid var(--light-gray);background:${i%2===0?'var(--white)':'var(--light-gray)'}">
-        <div style="font-size:12px;font-weight:600;word-break:break-word">${k}</div>
+        <div style="font-size:12px;font-weight:600;word-break:break-word">${escHtml(k)}</div>
         <div style="font-size:12px;text-align:center">${d.total}</div>
         <div style="font-size:12px;text-align:center">${d.passed}</div>
         <div style="font-size:12px;text-align:center;font-weight:600">${avg}%</div>
@@ -8054,10 +8054,10 @@ var selected = (Array.isArray(ua) ? ua : (ua !== null && ua !== undefined ? [ua]
 var ok = corrects.length > 1
   ? corrects.every(function(c){return selected.includes(c);}) && selected.every(function(s){return corrects.includes(s);})
   : selected.includes(corrects[0]);
-            var answerText = selected.map(function(s){return q.options[s]||'—';}).join(' + ') || '—';
+            var answerText = selected.map(function(s){return escHtml(q.options[s]||'—');}).join(' + ') || '—';
             return '<div class="answer-row">' +
               '<span style="flex-shrink:0">' + (ok?'✅':'❌') + '</span>' +
-              '<span style="flex:1;color:var(--dark-gray)">' + q.text + '</span>' +
+              '<span style="flex:1;color:var(--dark-gray)">' + escHtml(q.text) + '</span>' +
               '<span style="font-weight:600;color:' + (ok?'var(--success)':'var(--brand)') + '">' + answerText + '</span>' +
             '</div>';
           }).join('');
@@ -9958,19 +9958,30 @@ function loginOffline(username, password, fail) {
       : 'Hors ligne \u2014 ce compte ne s\u0027est jamais connect\u00e9 sur cet appareil');
     return;
   }
-  hashPwdLocal(password).then(function(h) {
-    if (h !== v.h) { fail('Identifiant ou mot de passe incorrect'); return; }
+  verifPwdLocal(password, v.h).then(function(ok) {
+    if (!ok) { fail('Identifiant ou mot de passe incorrect'); return; }
+    if (String(v.h).indexOf('$p2$') !== 0) hashPwdLocal(password).then(function(h) { saveOfflineVerifier(username, h, v.account); });
     showToast('\ud83d\udcf5 Connect\u00e9 hors ligne');
     loginSuccess(v.account, true);
   });
 }
 
-async function hashPwdLocal(pwd) {
+// v5.3 : vérificateur hors ligne salé et itéré (PBKDF2-SHA256, 100 000 tours, sel aléatoire par appareil)
+function hexLocal(u8) { return Array.from(u8).map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join(''); }
+async function hashPwdLocal(pwd, sel) {
   if (!pwd) return '';
-  var enc = new TextEncoder().encode(String(pwd));
-  var buf = await crypto.subtle.digest('SHA-256', enc);
-  var hex = Array.from(new Uint8Array(buf)).map(function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
-  return '$h$' + hex;
+  var s = sel || hexLocal(crypto.getRandomValues(new Uint8Array(16)));
+  var cle = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(pwd)), 'PBKDF2', false, ['deriveBits']);
+  var bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(s), iterations: 100000 }, cle, 256);
+  return '$p2$' + s + '$' + hexLocal(new Uint8Array(bits));
+}
+// Compare au vérificateur enregistré ; l'ancien format (SHA-256 sans sel) est encore accepté une fois
+async function verifPwdLocal(pwd, stocke) {
+  stocke = String(stocke || '');
+  if (!pwd || !stocke) return false;
+  if (stocke.indexOf('$p2$') === 0) return (await hashPwdLocal(pwd, stocke.split('$')[2])) === stocke;
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(pwd)));
+  return ('$h$' + hexLocal(new Uint8Array(buf))) === stocke;
 }
 
 function loginSuccess(account, offline) {
@@ -11372,7 +11383,7 @@ function renderPromoFilters() {
   if (ensWrap) {
     var enseignes = ['Toutes'].concat(db.enseignes || []);
     ensWrap.innerHTML = enseignes.map(function(e) {
-      return '<div class="promo-filter-chip' + (promoFilterEnseigne === e ? ' active' : '') + '" onclick="setPromoFilterEnseigne(\'' + e.replace(/'/g,"\\'") + '\')">' + e + '</div>';
+      return '<div class="promo-filter-chip' + (promoFilterEnseigne === e ? ' active' : '') + '" onclick="setPromoFilterEnseigne(' + escHtml(JSON.stringify(e)) + ')">' + escHtml(e) + '</div>';
     }).join('');
   }
   var catWrap = document.getElementById('promo-filter-cats');
@@ -11381,7 +11392,7 @@ function renderPromoFilters() {
     catWrap.innerHTML = cats.map(function(c) {
       var color = c === 'Toutes' ? 'var(--brand)' : getCatColor(c);
       var activeStyle = promoFilterCat === c ? 'background:'+color+';color:white;border-color:'+color : '';
-      return '<div class="promo-filter-chip' + (promoFilterCat === c ? ' active' : '') + '" style="' + activeStyle + '" onclick="setPromoFilterCat(\'' + c.replace(/'/g,"\\'") + '\')">' + c + '</div>';
+      return '<div class="promo-filter-chip' + (promoFilterCat === c ? ' active' : '') + '" style="' + escHtml(activeStyle) + '" onclick="setPromoFilterCat(' + escHtml(JSON.stringify(c)) + ')">' + escHtml(c) + '</div>';
     }).join('');
   }
 }
@@ -12144,7 +12155,7 @@ function renderManageEnseignes() {
   }
   c.innerHTML = db.enseignes.map(function(e, i) {
     return '<div class="quiz-card fade-up" style="animation-delay:'+(i*0.04)+'s">' +
-      '<div class="quiz-card-body"><div class="quiz-card-title">' + e + '</div></div>' +
+      '<div class="quiz-card-body"><div class="quiz-card-title">' + escHtml(e) + '</div></div>' +
       '<div class="quiz-card-actions">' +
         '<button class="btn-icon" onclick="editEnseigne(' + i + ')" title="Modifier">&#9998;</button>' +
         '<button class="btn-icon danger" onclick="deleteEnseigne(' + i + ')" title="Supprimer">&#128465;</button>' +
@@ -13200,14 +13211,14 @@ function plvPdfJs() {
   if (_plvPdfJsP) return _plvPdfJsP;
   _plvPdfJsP = new Promise(function(resolve, reject) {
     var sc = document.createElement('script');
-    var base = 'libs/', cdn = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+    var base = 'libs/', cdn = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
     sc.src = base + 'pdf.min.js';
     sc.onload = function() {
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
       resolve(window.pdfjsLib);
     };
     sc.onerror = function() {
-      if (base === 'libs/') { base = cdn; var s2 = document.createElement('script'); s2.src = base + 'pdf.min.js'; s2.onload = sc.onload; s2.onerror = function() { _plvPdfJsP = null; reject(new Error('lecteur PDF indisponible (hors ligne ?)')); }; document.head.appendChild(s2); return; }
+      if (base === 'libs/') { base = cdn; var s2 = document.createElement('script'); s2.src = base + 'pdf.min.js'; s2.integrity = 'sha256-W1eZ5vjGgGYyB6xbQu4U7tKkBvp69I9QwVTwwLFWaUY='; s2.crossOrigin = 'anonymous'; s2.onload = sc.onload; s2.onerror = function() { _plvPdfJsP = null; reject(new Error('lecteur PDF indisponible (hors ligne ?)')); }; document.head.appendChild(s2); return; }
       _plvPdfJsP = null; reject(new Error('lecteur PDF indisponible (hors ligne ?)'));
     };
     document.head.appendChild(sc);
@@ -13532,7 +13543,7 @@ function plvXlsxStyle() {
     sc.src = 'libs/xlsx.bundle.js';
     sc.onload = function() { _plvXS = window.XLSX; window.XLSX = orig; resolve(_plvXS); };
     sc.onerror = function() {
-      if (!sc._cdn) { sc._cdn = 1; var s2 = document.createElement('script'); s2.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'; s2.onload = sc.onload; s2.onerror = function() { window.XLSX = orig; resolve(null); }; document.head.appendChild(s2); return; }
+      if (!sc._cdn) { sc._cdn = 1; var s2 = document.createElement('script'); s2.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'; s2.integrity = 'sha256-HHq/KZP/LNYeUI+SaOms2gCYyXlvOSXSug0leQcmU+I='; s2.crossOrigin = 'anonymous'; s2.onload = sc.onload; s2.onerror = function() { window.XLSX = orig; resolve(null); }; document.head.appendChild(s2); return; }
       window.XLSX = orig; resolve(null);
     };
     document.head.appendChild(sc);
