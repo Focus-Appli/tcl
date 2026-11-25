@@ -4578,7 +4578,7 @@ function getPendingSummary() {
 }
 
 function getLastSyncLabel() {
-  var ts = localStorage.getItem('last_sync_ok') || localStorage.getItem('last_import');
+  var ts = localStorage.getItem(PFX + 'last_sync_ok') || localStorage.getItem(PFX + 'last_import');
   if (!ts) return 'Jamais synchronis\u00e9';
   var d = new Date(ts);
   var diff = Math.round((Date.now() - d.getTime()) / 60000);
@@ -7275,7 +7275,7 @@ function safeReload() {
   if (_swReloading) return;
   // Anti-boucle : au maximum un rechargement automatique toutes les 30 s
   try {
-    var last = Number(sessionStorage.getItem('sw_last_reload') || 0);
+    var last = Number(sessionStorage.getItem(PFX + 'sw_last_reload') || 0);
     if (Date.now() - last < 30000) return;
   } catch(e) {}
   if (_swIsBusy()) {
@@ -7286,7 +7286,7 @@ function safeReload() {
     return;
   }
   _swReloading = true;
-  try { sessionStorage.setItem('sw_last_reload', String(Date.now())); } catch(e) {}
+  try { sessionStorage.setItem(PFX + 'sw_last_reload', String(Date.now())); } catch(e) {}
   showToast('🔄 Mise à jour de l\'application...');
   setTimeout(function() { window.location.reload(); }, 800);
 }
@@ -7675,7 +7675,7 @@ function runAutoSync(force) {
   setSyncLabel('Synchro…');
   autoFullSync().then(function() {
     _lastAutoSync = Date.now();
-    try { localStorage.setItem('last_sync_ok', new Date().toISOString()); } catch(e) {}
+    try { localStorage.setItem(PFX + 'last_sync_ok', new Date().toISOString()); } catch(e) {}
     renderHome();
     refreshActiveScreen();
   }).catch(function() {}).then(function() {
@@ -9464,7 +9464,7 @@ function renderSyncCenter() {
   if (_act) _act.textContent = _p.actions;
   document.getElementById('sync-quiz-count').textContent = db.quizzes.length;
 
-  const lastImport = localStorage.getItem('last_import');
+  const lastImport = localStorage.getItem(PFX + 'last_import');
   document.getElementById('sync-last-import').textContent = lastImport
     ? 'Dernière importation : ' + new Date(lastImport).toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
     : 'Dernière importation : jamais';
@@ -9763,7 +9763,7 @@ var deletedF = db.deletedFormationIds || [];
   // Always save DB and refresh UI
   ensureDbStructure();
   saveDB();
-  localStorage.setItem('last_import', new Date().toISOString());
+  localStorage.setItem(PFX + 'last_import', new Date().toISOString());
   renderSyncCenter();
   renderHome();
 
@@ -15526,9 +15526,9 @@ function synCharger(force) {
   apiJsonp({ action: 'syntheseRapports' }, { timeout: 30000, retries: 2 }).then(function(r) {
     if (!r || r.status !== 'ok' || !Array.isArray(r.lignes)) throw new Error((r && r.message) || 'réponse vide');
     _syn.data = r.lignes; _syn.horsLigne = false; _syn.at = Date.now();
-    try { localStorage.setItem('focus_synthese_cache', JSON.stringify({ at: _syn.at, lignes: r.lignes })); } catch (e) {}
+    try { localStorage.setItem(PFX + 'synthese_cache', JSON.stringify({ at: _syn.at, lignes: r.lignes })); } catch (e) {}
   }).catch(function(e) {
-    var c = null; try { c = JSON.parse(localStorage.getItem('focus_synthese_cache') || 'null'); } catch (x) {}
+    var c = null; try { c = JSON.parse(localStorage.getItem(PFX + 'synthese_cache') || 'null'); } catch (x) {}
     _syn.data = c && c.lignes ? c.lignes : synLignesLocales();
     _syn.horsLigne = true;
     if (e && /role|autoris|403/i.test(String(e.message))) showToast('⛔ ' + e.message);
@@ -16153,10 +16153,10 @@ function migrationDateLue() {
   try {
     d = String(P('migrationDate') || '').trim();
     var charge = db && db.parametres && Object.keys(db.parametres).length > 0;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) localStorage.setItem('canon_migration_date', d);
-    else if (charge) { localStorage.removeItem('canon_migration_date'); d = ''; }
-    else d = localStorage.getItem('canon_migration_date') || '';
-  } catch (e) { try { d = localStorage.getItem('canon_migration_date') || ''; } catch (e2) {} }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) localStorage.setItem(PFX + 'migration_date', d);
+    else if (charge) { localStorage.removeItem(PFX + 'migration_date'); d = ''; }
+    else d = localStorage.getItem(PFX + 'migration_date') || '';
+  } catch (e) { try { d = localStorage.getItem(PFX + 'migration_date') || ''; } catch (e2) {} }
   return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
 }
 function migrationAujourdhui() { var n = new Date(); return n.getFullYear() + '-' + ('0' + (n.getMonth() + 1)).slice(-2) + '-' + ('0' + n.getDate()).slice(-2); }
@@ -16243,7 +16243,7 @@ function migrationControle() {
 function migrationAccueil() {
   if (!migrationSurNouvelle() || !/[?&]depuis=ancienne/.test(location.search)) return;
   try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
-  try { if (localStorage.getItem('canon_migration_vue')) return; localStorage.setItem('canon_migration_vue', '1'); } catch (e) {}
+  try { if (localStorage.getItem(PFX + 'migration_vue')) return; localStorage.setItem(PFX + 'migration_vue', '1'); } catch (e) {}
   setTimeout(function() { alert('Bienvenue sur la nouvelle adresse de l’application.\n\nReconnecte-toi, puis ajoute l’appli à ton écran d’accueil (menu du navigateur → « Ajouter à l’écran d’accueil »). Tu peux supprimer l’ancienne icône.'); }, 1500);
 }
 
