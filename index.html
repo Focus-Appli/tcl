@@ -30,8 +30,8 @@
      ════════════════════════════════════════════════════════════════════ -->
 <script>
 window.APP_CONFIG = {
- "prefixe": "canon_",
- "webhook": "https://script.google.com/macros/s/AKfycbx8H_foSce4lTOn3Az5MsLbBxU2NywYUXRchZJK10kyBdWJKFezkMccd5luSrGR5j6iEw/exec",
+ "prefixe": "tcl_",
+ "webhook": "https://script.google.com/macros/s/AKfycbxlTmAdO09y1k8_h3D4gkuYM4FoPRQHoIMND1BaCVLkPk7KISYc5xoc-oQ78s3naKFq/exec",
  "parametres": {
   "nom": "Focus",
   "nomCourt": "Focus",
@@ -1515,6 +1515,7 @@ window.appliquerMarqueSplash(window.marqueInitiale());
     <div data-reglages="Promos" style="margin-bottom:10px"></div>
     <button id="btn-mail-promos" class="btn btn-primary" onclick="ouvrirMailPromosModal()" style="margin-bottom:8px">📧 Envoyer les promos par mail</button>
     <button class="btn btn-secondary" onclick="ouvrirIlvEnseigne()" style="margin-bottom:14px">📕 ILV par enseigne</button>
+    <button class="btn btn-secondary" onclick="ouvrirConformite()" style="margin-bottom:14px">✅ Relevé conformité en magasin</button>
     <!-- Enseigne filters -->
     <div class="section-label">Enseigne</div>
     <div class="promo-filter-bar" id="promo-filter-enseignes"></div>
@@ -8848,7 +8849,7 @@ function handleAuthError(res) {
 // Les appels idempotents passes avec {queue:true} sont mis en file
 // d'attente hors ligne et rejoues automatiquement au retour du reseau.
 // ══════════════════════════════════════════════════════════
-var QUEUEABLE_ACTIONS = ['syncAllPDV', 'updatePDVComment', 'upsertFormation', 'deleteFormation', 'syncConfig', 'upsertSession', 'savePlvCommande', 'saveTable', 'updatePDVEmail', 'tableurSaisir'];
+var QUEUEABLE_ACTIONS = ['syncAllPDV', 'updatePDVComment', 'upsertFormation', 'deleteFormation', 'syncConfig', 'upsertSession', 'savePlvCommande', 'saveTable', 'updatePDVEmail', 'tableurSaisir', 'saveConformite'];
 
 // Le jeton de session est ajoute ici, une fois pour toutes : aucune action
 // n'a besoin d'y penser. 'login' est la seule exception (il n'en a pas encore).
@@ -11787,6 +11788,257 @@ function ilvDeLEnseigne() {
   }).sort(function(a, b) { return toISODate(a.start) < toISODate(b.start) ? -1 : 1; }).forEach(function(p) { liste.push(p); });
   return liste;
 }
+// ═══════ RELEVÉ DE CONFORMITÉ PROMO / ILV (v5.2) ═══════
+// Le CDS choisit enseigne + magasin, puis indique pour chaque promo en cours si elle est
+// en place. Fonctionne hors ligne (file d'envoi). Suivi par promo et par secteur.
+var CONF_STATUTS = [['ok', '✅', 'En place'], ['partiel', '🟡', 'Partielle'], ['absent', '❌', 'Absente'], ['na', '⛔', 'N/A']];
+var _conf = { ens: '', mag: '', statuts: {}, com: '' };
+var _confSuivi = { jours: 30, data: null };
+
+function confPromosEnCours(ens) {
+  return (db.promos || []).filter(function(p) {
+    return ens && (p.enseignes || []).indexOf(ens) !== -1 && promoPeriode(p) === 'cours';
+  }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); });
+}
+function confPdvActifs() {
+  var sect = getVisitSector();
+  var pdv = getPDVList().filter(function(p) { return (p.statut || 'actif') === 'actif'; });
+  var sc = sect ? pdv.filter(function(p) { return p.secteur === sect; }) : pdv;
+  return sc.length ? sc : pdv;
+}
+function confEnseignes() {
+  var l = [];
+  confPdvActifs().forEach(function(p) { if (p.enseigne && l.indexOf(p.enseigne) === -1 && confPromosEnCours(p.enseigne).length) l.push(p.enseigne); });
+  return l.sort();
+}
+function confMagasins(ens) {
+  var l = [];
+  confPdvActifs().forEach(function(p) { if (p.enseigne === ens && p.name && l.indexOf(p.name) === -1) l.push(p.name); });
+  return l.sort();
+}
+function confOpt(liste, val, vide) {
+  return '<option value="">' + vide + '</option>' + liste.map(function(x) {
+    return '<option value="' + escHtml(x) + '"' + (x === val ? ' selected' : '') + '>' + escHtml(x) + '</option>';
+  }).join('');
+}
+function confLocal() {
+  try { var v = JSON.parse(localStorage.getItem(PFX + 'conformite') || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+function confDernier(ens, mag) {
+  var l = confLocal().filter(function(r) { return r.enseigne === ens && r.magasin === mag; });
+  return l.length ? l[l.length - 1] : null;
+}
+// Réaffiche la fenêtre sans perdre la position de défilement
+function confAfficher(h) {
+  var avant = document.querySelector('#param-modal > div');
+  var sc = avant ? avant.scrollTop : 0;
+  ouvrirModalParam(h);
+  var apres = document.querySelector('#param-modal > div');
+  if (apres && sc) apres.scrollTop = sc;
+}
+
+function ouvrirConformite() {
+  var h = '<div style="font-size:15px;font-weight:700;margin-bottom:4px">✅ Relevé conformité</div>' +
+    '<div style="font-size:12px;color:var(--dark-gray);margin-bottom:12px">Les promos en cours sont-elles en place dans le magasin ?</div>';
+  var ensL = confEnseignes();
+  if (!ensL.length) {
+    ouvrirModalParam(h + '<div style="font-size:13px;color:var(--dark-gray);padding:10px 0">Aucune promo en cours pour les enseignes de ton secteur.</div>' +
+      '<button class="btn btn-secondary" onclick="fermerModalParam()">Fermer</button>');
+    return;
+  }
+  if (ensL.indexOf(_conf.ens) === -1) { _conf.ens = ensL.length === 1 ? ensL[0] : ''; _conf.mag = ''; _conf.statuts = {}; }
+  var magL = _conf.ens ? confMagasins(_conf.ens) : [];
+  if (magL.indexOf(_conf.mag) === -1) _conf.mag = '';
+  h += '<div class="form-group"><label class="form-label">Enseigne</label><select class="form-select" onchange="_conf.ens=this.value;_conf.mag=\'\';_conf.statuts={};ouvrirConformite()">' +
+    confOpt(ensL, _conf.ens, '— Choisir l\'enseigne —') + '</select></div>';
+  if (_conf.ens) h += '<div class="form-group"><label class="form-label">Magasin</label><select class="form-select" onchange="_conf.mag=this.value;ouvrirConformite()">' +
+    confOpt(magL, _conf.mag, '— Choisir le magasin —') + '</select></div>';
+  if (_conf.ens && _conf.mag) {
+    var d = confDernier(_conf.ens, _conf.mag);
+    if (d) h += '<div style="font-size:12px;color:var(--dark-gray);margin-bottom:8px">Dernier relevé dans ce magasin : ' + formatDateFR(String(d.date).slice(0, 10)) + '</div>';
+    var promos = confPromosEnCours(_conf.ens);
+    h += promos.map(function(p, i) {
+      var st = _conf.statuts[p.id] || '';
+      return '<div style="padding:8px 0;border-top:1px solid var(--beige)">' +
+        '<div style="font-size:13px;font-weight:700;margin-bottom:6px">' + escHtml(p.name) +
+        ' <span style="font-weight:500;color:var(--dark-gray);font-size:12px">jusqu\'au ' + formatDateFR(p.end) + '</span></div>' +
+        '<div class="promo-filter-bar" style="margin:0">' + CONF_STATUTS.map(function(s) {
+          return '<div class="promo-filter-chip' + (st === s[0] ? ' active' : '') + '" onclick="confStatut(' + i + ',\'' + s[0] + '\')">' + s[1] + ' ' + s[2] + '</div>';
+        }).join('') + '</div></div>';
+    }).join('');
+    var nb = promos.filter(function(p) { return _conf.statuts[p.id]; }).length;
+    h += '<div class="form-group" style="margin-top:10px"><label class="form-label">Commentaire (facultatif)</label>' +
+      '<textarea class="form-input" rows="2" maxlength="500" oninput="_conf.com=this.value" style="resize:vertical">' + escHtml(_conf.com) + '</textarea></div>' +
+      '<button class="btn btn-primary mb-8" onclick="enregistrerConformite()"' + (nb ? '' : ' disabled') + '>💾 Enregistrer (' + nb + '/' + promos.length + ')</button>';
+  }
+  h += '<button class="btn btn-secondary mb-8" onclick="ouvrirSuiviConformite(30)">📊 Suivi de la conformité</button>' +
+    '<button class="btn btn-secondary" onclick="fermerModalParam()">Fermer</button>';
+  confAfficher(h);
+}
+
+function confStatut(i, s) {
+  var p = confPromosEnCours(_conf.ens)[i];
+  if (!p) return;
+  _conf.statuts[p.id] = (_conf.statuts[p.id] === s) ? '' : s;   // 2e appui = annuler
+  ouvrirConformite();
+}
+
+function enregistrerConformite() {
+  var lignes = confPromosEnCours(_conf.ens).filter(function(p) { return _conf.statuts[p.id]; }).map(function(p) {
+    return { promoId: String(p.id), promoName: String(p.name || ''), statut: _conf.statuts[p.id] };
+  });
+  if (!_conf.ens || !_conf.mag || !lignes.length) { showToast('Indique au moins un statut'); return; }
+  var id = 'conf_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+  var releve = { id: id, date: new Date().toISOString(), enseigne: _conf.ens, magasin: _conf.mag, lignes: lignes, commentaire: String(_conf.com || '').slice(0, 500) };
+  try {
+    var loc = confLocal(); loc.push({ id: id, date: releve.date, enseigne: releve.enseigne, magasin: releve.magasin, nb: lignes.length });
+    localStorage.setItem(PFX + 'conformite', JSON.stringify(loc.slice(-200)));
+  } catch (e) {}
+  var alerte = lignes.some(function(l) { return l.statut === 'partiel' || l.statut === 'absent'; });
+  apiPost({ action: 'saveConformite', id: id, releve: releve }, { queue: true }).then(function(ok) {
+    if (!ok) showToast('📥 Relevé gardé : envoi' + (alerte ? ' et alerte au manager' : '') + ' au retour du réseau');
+    else showToast(alerte ? '⚠️ Relevé enregistré — alerte envoyée au manager' : '✅ Promos confirmées en place');
+    _confAlertes.t = 0;   // le bandeau d'alerte se rafraîchira
+  });
+  _conf.mag = ''; _conf.statuts = {}; _conf.com = '';
+  ouvrirConformite();
+}
+
+function ouvrirSuiviConformite(jours) {
+  if (jours) { _confSuivi.jours = jours; _confSuivi.data = null; }
+  if (!_confSuivi.data) {
+    if (!navigator.onLine) { showToast('⚠️ Connexion requise pour le suivi'); return; }
+    ouvrirModalParam('<div style="padding:24px;text-align:center;font-size:13px;color:var(--dark-gray)">Chargement du suivi…</div>');
+    var depuis = new Date(Date.now() - _confSuivi.jours * 86400000).toISOString().slice(0, 10);
+    apiJsonp({ action: 'conformite', depuis: depuis }, { timeout: 30000 }).then(function(res) {
+      if (!res || res.status !== 'ok') { fermerModalParam(); showToast('⚠️ ' + ((res && res.message) || 'Lecture impossible')); return; }
+      _confSuivi.data = res.lignes || [];
+      ouvrirSuiviConformite();
+    }).catch(function() { fermerModalParam(); showToast('⚠️ Échec réseau'); });
+    return;
+  }
+  // Dernier statut connu par magasin et par promo
+  var der = {};
+  _confSuivi.data.forEach(function(l) {
+    var k = l.enseigne + '|' + l.magasin + '|' + l.promoId;
+    if (!der[k] || l.date > der[k].date) der[k] = l;
+  });
+  var parPromo = {}, parSect = {};
+  Object.keys(der).forEach(function(k) {
+    var l = der[k];
+    var g = parPromo[l.promoId] || (parPromo[l.promoId] = { nom: l.promoName, n: 0, ok: 0, partiel: 0, absent: 0, na: 0, absents: [] });
+    g.n++; g[l.statut] = (g[l.statut] || 0) + 1;
+    if (l.statut === 'absent') g.absents.push(l.magasin + (l.secteur ? ' (' + l.secteur + ')' : ''));
+    var sk = l.secteur || '—';
+    var t = parSect[sk] || (parSect[sk] = { n: 0, ok: 0, na: 0, mags: {} });
+    t.n++; if (l.statut === 'ok') t.ok++; if (l.statut === 'na') t.na++; t.mags[l.enseigne + '|' + l.magasin] = 1;
+  });
+  var taux = function(ok, n, na) { var b = n - na; return b > 0 ? Math.round(ok / b * 100) : null; };
+  var couleur = function(t) { return t === null ? 'var(--dark-gray)' : t >= 80 ? '#2E7D32' : t >= 50 ? '#E6A100' : '#C62828'; };
+  var h = '<div style="font-size:15px;font-weight:700;margin-bottom:10px">📊 Suivi de la conformité</div>' +
+    '<div class="promo-filter-bar">' + [7, 30, 90].map(function(j) {
+      return '<div class="promo-filter-chip' + (_confSuivi.jours === j ? ' active' : '') + '" onclick="ouvrirSuiviConformite(' + j + ')">' + j + ' jours</div>';
+    }).join('') + '</div>';
+  var promos = Object.keys(parPromo).map(function(k) { return parPromo[k]; }).sort(function(a, b) { return b.n - a.n; });
+  if (!promos.length) h += '<div style="font-size:13px;color:var(--dark-gray);padding:10px 0">Aucun relevé sur cette période.</div>';
+  promos.forEach(function(g) {
+    var t = taux(g.ok, g.n, g.na);
+    h += '<div style="padding:10px 0;border-top:1px solid var(--beige)">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:13px;font-weight:700">' + escHtml(g.nom) + '</span>' +
+      '<span style="font-size:14px;font-weight:700;color:' + couleur(t) + '">' + (t === null ? '—' : t + ' %') + '</span></div>' +
+      '<div style="font-size:12px;color:var(--dark-gray);margin-top:2px">' + g.n + ' magasin' + (g.n > 1 ? 's' : '') + ' · ✅ ' + g.ok + ' · 🟡 ' + g.partiel + ' · ❌ ' + g.absent + (g.na ? ' · ⛔ ' + g.na : '') + '</div>' +
+      (g.absents.length ? '<div style="font-size:12px;color:#C62828;margin-top:4px">Absente : ' + escHtml(g.absents.slice(0, 10).join(', ')) + (g.absents.length > 10 ? '…' : '') + '</div>' : '') +
+      '</div>';
+  });
+  var sects = Object.keys(parSect).sort();
+  if (sects.length > 1) {
+    h += '<div class="section-label" style="margin-top:14px">Par secteur</div>' + sects.map(function(k) {
+      var s = parSect[k], t = taux(s.ok, s.n, s.na);
+      return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px solid var(--beige)"><span>' + escHtml(k) +
+        ' <span style="color:var(--dark-gray);font-size:12px">(' + Object.keys(s.mags).length + ' mag.)</span></span><b style="color:' + couleur(t) + '">' + (t === null ? '—' : t + ' %') + '</b></div>';
+    }).join('');
+  }
+  h += '<div style="font-size:11px;color:var(--dark-gray);margin:12px 0 8px">Dernier relevé connu par magasin et par promo. Taux = en place / (relevés − N/A).</div>' +
+    '<button class="btn btn-secondary mb-8" onclick="ouvrirConformite()">← Nouveau relevé</button>' +
+    '<button class="btn btn-secondary" onclick="fermerModalParam()">Fermer</button>';
+  ouvrirModalParam(h);
+}
+
+// ── Alerte dans l'appli : promo partielle ou absente (manager, admin, référent) ──
+// Bandeau sur l'accueil, sous les rappels. Une alerte disparaît quand la promo est
+// terminée, quand un relevé plus récent du magasin la dit en place, ou quand on la marque « vue ».
+var _confAlertes = { t: 0, lignes: null, enCours: false };
+function confVus() {
+  try { var v = JSON.parse(localStorage.getItem(PFX + 'conf_vus') || '{}'); return (v && typeof v === 'object') ? v : {}; } catch (e) { return {}; }
+}
+function confCleAlerte(l) { return l.enseigne + '|' + l.magasin + '|' + l.promoId + '|' + l.date; }
+function confListeAlertes() {
+  var der = {}, vus = confVus();
+  (_confAlertes.lignes || []).forEach(function(l) {
+    var k = l.enseigne + '|' + l.magasin + '|' + l.promoId;
+    if (!der[k] || l.date > der[k].date) der[k] = l;
+  });
+  return Object.keys(der).map(function(k) { return der[k]; }).filter(function(l) {
+    if (l.statut !== 'partiel' && l.statut !== 'absent') return false;
+    if (vus[confCleAlerte(l)]) return false;
+    var p = (db.promos || []).filter(function(x) { return String(x.id) === String(l.promoId); })[0];
+    return !p || promoPeriode(p) === 'cours';
+  }).sort(function(a, b) { return a.date < b.date ? 1 : -1; });
+}
+function renderConfAlertes() {
+  if (!currentAccount || !(hasRole('manager') || hasRole('admin') || hasRole('referent'))) return;
+  var ref = document.getElementById('rappels-wrap');
+  if (!ref) return;
+  var wrap = document.getElementById('conf-alertes-wrap');
+  if (!wrap) { wrap = document.createElement('div'); wrap.id = 'conf-alertes-wrap'; ref.parentNode.insertBefore(wrap, ref.nextSibling); }
+  // Lecture serveur au plus toutes les 10 min (15 derniers jours)
+  if (!_confAlertes.enCours && navigator.onLine && Date.now() - _confAlertes.t > 600000) {
+    _confAlertes.enCours = true;
+    var depuis = new Date(Date.now() - 15 * 86400000).toISOString().slice(0, 10);
+    apiJsonp({ action: 'conformite', depuis: depuis }, { timeout: 30000 }).then(function(res) {
+      if (res && res.status === 'ok') { _confAlertes.lignes = res.lignes || []; _confAlertes.t = Date.now(); }
+    }).catch(function() {}).then(function() { _confAlertes.enCours = false; renderConfAlertes(); });
+  }
+  var l = confListeAlertes();
+  if (!l.length) { wrap.innerHTML = ''; return; }
+  var resume = l.slice(0, 2).map(function(a) { return a.promoName + ' ' + (a.statut === 'absent' ? 'absente' : 'partielle') + ' — ' + a.magasin; }).join(' · ');
+  wrap.innerHTML = '<div class="pending-banner" style="cursor:pointer;border-left:4px solid #C62828" onclick="ouvrirConfAlertes()">' +
+    '<div style="font-size:20px;flex-shrink:0">⚠️</div><div style="flex:1;min-width:0">' +
+    '<div class="pending-banner-title">' + l.length + ' promo' + (l.length > 1 ? 's' : '') + ' non conforme' + (l.length > 1 ? 's' : '') + ' en magasin</div>' +
+    '<div class="pending-banner-sub">' + escHtml(resume) + (l.length > 2 ? '…' : '') + '</div></div>' +
+    '<div style="font-size:18px;color:var(--dark-gray)">›</div></div>';
+}
+function ouvrirConfAlertes() {
+  var l = confListeAlertes();
+  if (!l.length) { fermerModalParam(); renderConfAlertes(); return; }
+  var h = '<div style="font-size:15px;font-weight:700;margin-bottom:10px">⚠️ Promos non conformes</div>' +
+    l.map(function(a, i) {
+      return '<div style="padding:10px 0;border-top:1px solid var(--beige)">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:13px;font-weight:700">' + escHtml(a.promoName) + '</span>' +
+        '<span style="font-size:12px;font-weight:700;color:' + (a.statut === 'absent' ? '#C62828' : '#E6A100') + '">' + (a.statut === 'absent' ? '❌ Absente' : '🟡 Partielle') + '</span></div>' +
+        '<div style="font-size:12px;color:var(--dark-gray);margin-top:2px">' + escHtml(a.enseigne + ' · ' + a.magasin + (a.secteur ? ' (' + a.secteur + ')' : '')) + '</div>' +
+        '<div style="font-size:12px;color:var(--dark-gray)">' + escHtml((a.cds || '') + ' · ' + formatDateFR(String(a.jour || a.date).slice(0, 10))) + '</div>' +
+        (a.commentaire ? '<div style="font-size:12px;margin-top:4px;white-space:pre-wrap">💬 ' + escHtml(a.commentaire) + '</div>' : '') +
+        '<button class="btn btn-secondary btn-sm" style="width:auto;margin-top:6px" onclick="confMarquerVu(' + i + ')">✓ Vu</button></div>';
+    }).join('') +
+    '<button class="btn btn-secondary mb-8" style="margin-top:10px" onclick="confMarquerVu(-1)">✓ Tout marquer comme vu</button>' +
+    '<button class="btn btn-secondary mb-8" onclick="ouvrirSuiviConformite(30)">📊 Suivi de la conformité</button>' +
+    '<button class="btn btn-secondary" onclick="fermerModalParam()">Fermer</button>';
+  confAfficher(h);
+}
+function confMarquerVu(i) {
+  var l = confListeAlertes(), vus = confVus();
+  (i < 0 ? l : [l[i]]).forEach(function(a) { if (a) vus[confCleAlerte(a)] = Date.now(); });
+  var limite = Date.now() - 60 * 86400000;   // ménage : 2 mois
+  Object.keys(vus).forEach(function(k) { if (vus[k] < limite) delete vus[k]; });
+  try { localStorage.setItem(PFX + 'conf_vus', JSON.stringify(vus)); } catch (e) {}
+  renderConfAlertes();
+  ouvrirConfAlertes();
+}
+// Branché sur les rappels de l'accueil (aucune modification du HTML)
+var _rrConf = renderRappels;
+renderRappels = function() { _rrConf.apply(this, arguments); try { renderConfAlertes(); } catch (e) {} };
+
 function ouvrirIlvEnseigne(ens) {
   var ensAvecIlv = (db.enseignes || []).filter(function(e) {
     return (db.promos || []).some(function(p) { return (p.enseignes || []).indexOf(e) !== -1 && pdfsPromo(p).length; });
