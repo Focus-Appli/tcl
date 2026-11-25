@@ -13,10 +13,10 @@ const VERSION_INDEX  = 'v5.3.0';   // ← bump = purge chez les utilisateurs d'i
 const VERSION_BETA   = 'v5.1.9';   // ← bump = purge chez les bêta-testeurs uniquement
 const VERSION_ASSETS = 'v2';       // autres ressources same-origin (rarement bumpé)
 
-const CACHE_INDEX  = 'canon-focus-index-'  + VERSION_INDEX;
-const CACHE_BETA   = 'canon-focus-beta-'   + VERSION_BETA;
-const CACHE_ASSETS = 'canon-focus-assets-' + VERSION_ASSETS;
-const IMG_CACHE    = 'canon-focus-images-v1'; // jamais purgé aux montées de version
+const CACHE_INDEX  = 'tcl-focus-index-'  + VERSION_INDEX;
+const CACHE_BETA   = 'tcl-focus-beta-'   + VERSION_BETA;
+const CACHE_ASSETS = 'tcl-focus-assets-' + VERSION_ASSETS;
+const IMG_CACHE    = 'tcl-focus-images-v1'; // jamais purgé aux montées de version
 
 // Caches conservés à l'activation : tout le reste est supprimé
 const KEEP_CACHES = [CACHE_INDEX, CACHE_BETA, CACHE_ASSETS, IMG_CACHE];
@@ -92,7 +92,8 @@ self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(keys) {
       return Promise.all(keys.map(function(key) {
-        if (KEEP_CACHES.indexOf(key) === -1) return caches.delete(key);
+        // v5.3 : ne touche qu'aux caches de CETTE appli (Canon et TCL partagent l'adresse focus-appli.github.io)
+        if (key.indexOf('tcl-focus-') === 0 && KEEP_CACHES.indexOf(key) === -1) return caches.delete(key);
       }));
     }).then(function() { return self.clients.claim(); })
   );
