@@ -9,8 +9,8 @@
 // On ne bumpe que pour FORCER une purge du cache local (migration de
 // structure localStorage, cache corrompu, version figée chez un testeur).
 // ─────────────────────────────────────────────────────────────────────────────
-const VERSION_INDEX  = 'v5.3.0';   // ← bump = purge chez les utilisateurs d'index.html
-const VERSION_BETA   = 'v5.1.9';   // ← bump = purge chez les bêta-testeurs uniquement
+const VERSION_INDEX  = 'v5.3.1';   // ← bump = purge chez les utilisateurs d'index.html
+const VERSION_BETA   = 'v5.2.0';   // ← bump = purge chez les bêta-testeurs uniquement
 const VERSION_ASSETS = 'v2';       // autres ressources same-origin (rarement bumpé)
 
 const CACHE_INDEX  = 'tcl-focus-index-'  + VERSION_INDEX;
