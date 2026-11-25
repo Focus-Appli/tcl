@@ -2337,8 +2337,8 @@ function renderTableurs() {
         (t.consigne ? '<div style="font-size:12px;color:var(--dark-gray);margin-top:6px;line-height:1.45;white-space:pre-line">' + escHtml(t.consigne) + '</div>' : '') +
         badgeEcheance(t.echeance) +
         (st ? ' <span style="display:inline-block;margin-top:6px;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;color:#fff;background:#2E8B57">Saisie dans l\'appli</span>' : '') +
-        (hasRole('manager') ? '<div style="margin-top:8px;display:flex;gap:6px"><button class="btn btn-secondary btn-sm" style="width:auto" onclick="event.stopPropagation();ouvrirImportTableur(\'' + idJs + '\')">📥 ' + (st ? 'Réimporter l\'Excel' : 'Importer l\'Excel') + '</button>' +
-          '<button class="btn btn-secondary btn-sm" style="width:auto" onclick="event.stopPropagation();ouvrirReglagesTableur(\'' + idJs + '\')">⚙️ Réglages</button></div>' : '') +
+        (hasRole('manager') ? '<div style="margin-top:8px;display:flex;gap:6px"><button class="btn btn-secondary btn-sm" style="width:auto" onclick="event.stopPropagation();ouvrirImportTableur(' + jsq(idJs) + ')">📥 ' + (st ? 'Réimporter l\'Excel' : 'Importer l\'Excel') + '</button>' +
+          '<button class="btn btn-secondary btn-sm" style="width:auto" onclick="event.stopPropagation();ouvrirReglagesTableur(' + jsq(idJs) + ')">⚙️ Réglages</button></div>' : '') +
       '</div>' +
       '<div class="quiz-card-arrow">' + (st ? '›' : '↗') + '</div>' +
     '</div>';
@@ -3068,7 +3068,7 @@ function renderTabImport() {
     '<select class="form-select" onchange="tabChoisirEntete(Number(this.value))" style="font-size:12px;padding:6px 8px;margin:0">' +
     aoa.slice(0, 25).map(function(r, i) {
       var txt = r.filter(function(v) { return v !== ''; }).join(' | ');
-      return '<option value="' + i + '"' + (i === e ? ' selected' : '') + '>' + (i + 1) + '. ' + tEsc((txt || '(vide)').slice(0, 70)) + '</option>';
+      return '<option value="' + eh(i) + '"' + (i === e ? ' selected' : '') + '>' + (i + 1) + '. ' + tEsc((txt || '(vide)').slice(0, 70)) + '</option>';
     }).join('') + '</select></div>' +
     '<label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:8px"><input type="checkbox" ' + (tabDouble(ref) ? 'checked' : '') +
       ' onchange="_tabImp.deuxLignes=this.checked;tabRecalculerColonnes();renderTabImport()"> Titres sur deux lignes (titre fusionné + sous-titres)</label>' +
@@ -3177,7 +3177,7 @@ function importerTableur() {
 function ouvrirTableur(id) {
   var t = tableursVisibles().filter(function(x) { return x.id === id; })[0];
   if (!t) return;
-  if (!t.url) return;
+  if (!t.url || !urlOk(t.url)) return;
   var w = null;
   try { w = window.open(t.url, '_blank'); } catch (e) {}
   if (w) { try { w.opener = null; } catch (e) {} } else { window.location.href = t.url; }
@@ -3294,13 +3294,13 @@ function messagesAAfficher(affichage) {
 function msgBoutonsHtml(m, enPopup) {
   var fermer = enPopup ? 'fermerPopupMessage();' : '';
   var h = '<div style="display:flex;gap:6px;flex-wrap:wrap">';
-  h += '<button onclick="' + fermer + 'confirmerMessage(\'' + m.id + '\')" style="flex:1;min-width:104px;padding:8px 10px;border-radius:8px;border:none;background:var(--success);color:#fff;font-size:12px;font-weight:700;cursor:pointer">' +
+  h += '<button onclick="' + fermer + 'confirmerMessage(' + jsq(m.id) + ')" style="flex:1;min-width:104px;padding:8px 10px;border-radius:8px;border:none;background:var(--success);color:#fff;font-size:12px;font-weight:700;cursor:pointer">' +
     (m.type === 'information' ? 'J\'ai compris' : 'Oui, c\'est fait') + '</button>';
   if (m.ecran || m.lien) {
-    h += '<button onclick="' + fermer + 'actionMessage(\'' + m.id + '\')" style="flex:1;min-width:104px;padding:8px 10px;border-radius:8px;border:1px solid var(--warning);background:#fff;color:var(--warning);font-size:12px;font-weight:700;cursor:pointer">' +
+    h += '<button onclick="' + fermer + 'actionMessage(' + jsq(m.id) + ')" style="flex:1;min-width:104px;padding:8px 10px;border-radius:8px;border:1px solid var(--warning);background:#fff;color:var(--warning);font-size:12px;font-weight:700;cursor:pointer">' +
       escHtml(m.bouton || 'Le faire') + '</button>';
   }
-  h += '<button onclick="' + fermer + 'reporterMessage(\'' + m.id + '\')" style="padding:8px 10px;border-radius:8px;border:none;background:transparent;color:var(--dark-gray);font-size:12px;cursor:pointer">Plus tard</button>';
+  h += '<button onclick="' + fermer + 'reporterMessage(' + jsq(m.id) + ')" style="padding:8px 10px;border-radius:8px;border:none;background:transparent;color:var(--dark-gray);font-size:12px;cursor:pointer">Plus tard</button>';
   return h + '</div>';
 }
 
@@ -4022,9 +4022,9 @@ function renderParametrage() {
       '<div class="quiz-card-body"' + (ouvrir ? ' onclick="' + ouvrir + '"' : '') + '><div class="quiz-card-title">' + escHtml(d.titre) + '</div><div class="quiz-card-meta">' + (MODS[nom].editable ? refListe(nom).length + ' élément(s) · ' : '') + 'Onglet « ' + escHtml(d.onglet) + ' »</div></div>' +
       (ouvrir ? '<div class="quiz-card-arrow" onclick="' + ouvrir + '">→</div>' : '') +
       '<div style="display:flex;gap:6px;width:100%;margin-top:8px">' +
-        '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="telechargerExcel([\'' + nom + '\'], false)">Modèle</button>' +
-        '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="telechargerExcel([\'' + nom + '\'], true)">Exporter</button>' +
-        '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="choisirFichierImport(\'' + nom + '\')">Importer</button>' +
+        '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="telechargerExcel([' + jsq(nom) + '], false)">Modèle</button>' +
+        '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="telechargerExcel([' + jsq(nom) + '], true)">Exporter</button>' +
+        '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto;font-size:12px" onclick="choisirFichierImport(' + jsq(nom) + ')">Importer</button>' +
       '</div></div>';
   });
   h += '<div class="section-label" style="margin-top:18px">🎯 Jeu de la semaine</div>' +
@@ -4066,7 +4066,7 @@ function ouvrirEditionMarque() {
         h += '<div style="font-size:12px;color:var(--dark-gray);margin-bottom:6px">Décochez les modules que ce client n’utilise pas : ils disparaissent pour tout le monde.</div>' +
           MODULES.map(function(m) {
             return '<label style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--beige);font-size:14px">' +
-              '<input type="checkbox" class="pm-module" value="' + m.k + '"' + (off.indexOf(m.k) === -1 ? ' checked' : '') + '> ' + m.ic + ' ' + escHtml(m.lbl) + '</label>';
+              '<input type="checkbox" class="pm-module" value="' + eh(m.k) + '"' + (off.indexOf(m.k) === -1 ? ' checked' : '') + '> ' + m.ic + ' ' + escHtml(m.lbl) + '</label>';
           }).join('');
         h += '</div>';
         return;
@@ -4150,7 +4150,7 @@ function enregistrerMarque() {
 // ── Réglages d'un écran : les paramètres du groupe g, réservés au manager ──
 function boutonReglages(g) {
   if (!hasRole('manager')) return '';
-  return '<button class="btn btn-secondary btn-sm" onclick="ouvrirReglages(\'' + g + '\')" style="width:auto">⚙️ Réglages</button>';
+  return '<button class="btn btn-secondary btn-sm" onclick="ouvrirReglages(' + jsq(g) + ')" style="width:auto">⚙️ Réglages</button>';
 }
 function ouvrirReglages(g) {
   if (!hasRole('manager')) return;
@@ -4161,7 +4161,7 @@ function ouvrirReglages(g) {
       '<input class="form-input" id="pr-' + d.k + '" value="' + escHtml(P(d.k)) + '">' +
       (d.aide ? '<div style="font-size:12px;color:var(--dark-gray);margin-top:4px">' + escHtml(d.aide) + '</div>' : '') + '</div>';
   });
-  h += '<button class="btn btn-primary mb-8" onclick="enregistrerReglages(\'' + g + '\')">💾 Enregistrer</button><button class="btn btn-secondary" onclick="fermerModalParam()">Annuler</button>';
+  h += '<button class="btn btn-primary mb-8" onclick="enregistrerReglages(' + jsq(g) + ')">💾 Enregistrer</button><button class="btn btn-secondary" onclick="fermerModalParam()">Annuler</button>';
   ouvrirModalParam(h);
 }
 function enregistrerReglages(g) {
@@ -4210,8 +4210,8 @@ function renderListeConfig() {
       '<div class="quiz-card-body"><div class="quiz-card-title">' + escHtml(titre) + (inactif ? ' (inactif)' : '') + '</div><div class="quiz-card-meta">' + escHtml(sous) + '</div></div><div class="quiz-card-arrow">✎</div></div>';
   });
   h += '<div style="display:flex;gap:8px;margin-top:14px">' +
-    '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto" onclick="telechargerExcel([\'' + _lcNom + '\'], true)">⬇️ Exporter</button>' +
-    '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto" onclick="choisirFichierImport(\'' + _lcNom + '\')">⬆️ Importer</button></div>';
+    '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto" onclick="telechargerExcel([' + jsq(_lcNom) + '], true)">⬇️ Exporter</button>' +
+    '<button class="btn btn-secondary btn-sm" style="flex:1;width:auto" onclick="choisirFichierImport(' + jsq(_lcNom) + ')">⬆️ Importer</button></div>';
   c.innerHTML = h;
 }
 function champConfigHtml(c, v) {
@@ -5042,7 +5042,7 @@ function renderQuestion() {
   document.getElementById('player-options').innerHTML = multiHint + q.options.map((opt, i) => `
     <button class="quiz-option" onclick="selectAnswer(${i})" id="opt_${i}">
       <span class="quiz-option-letter">${letters[i]}</span>
-      ${opt}
+      ${escHtml(opt)}
     </button>`).join('');
 
   if (corrects) {
@@ -5092,7 +5092,7 @@ function selectAnswer(idx) {
     // Show explanation if present
     if (q.explanation) {
       document.getElementById('player-options').insertAdjacentHTML('afterend',
-        '<div id="quiz-explanation" style="margin-top:12px;padding:12px 16px;background:rgba(25,118,210,0.08);border-left:3px solid #1976D2;border-radius:8px;font-size:13px;color:var(--charcoal);animation:fadeUp 0.3s ease">💡 ' + q.explanation + '</div>');
+        '<div id="quiz-explanation" style="margin-top:12px;padding:12px 16px;background:rgba(25,118,210,0.08);border-left:3px solid #1976D2;border-radius:8px;font-size:13px;color:var(--charcoal);animation:fadeUp 0.3s ease">💡 ' + escHtml(q.explanation) + '</div>');
     }
     const nextBtn = document.getElementById('player-next-btn');
     nextBtn.style.display = 'flex';
@@ -5120,7 +5120,7 @@ function validateMultiAnswer() {
   // Show explanation if present
   if (q.explanation) {
     document.getElementById('player-options').insertAdjacentHTML('afterend',
-      '<div id="quiz-explanation" style="margin-top:12px;padding:12px 16px;background:rgba(25,118,210,0.08);border-left:3px solid #1976D2;border-radius:8px;font-size:13px;color:var(--charcoal);animation:fadeUp 0.3s ease">💡 ' + q.explanation + '</div>');
+      '<div id="quiz-explanation" style="margin-top:12px;padding:12px 16px;background:rgba(25,118,210,0.08);border-left:3px solid #1976D2;border-radius:8px;font-size:13px;color:var(--charcoal);animation:fadeUp 0.3s ease">💡 ' + escHtml(q.explanation) + '</div>');
   }
 
   const nextBtn = document.getElementById('player-next-btn');
@@ -5276,7 +5276,7 @@ function renderEditOffres() {
   if (tabs) {
     tabs.innerHTML = ITO_ENSEIGNES.map(function(e) {
       var active = e === _editItoEnseigne;
-      return '<button class="filter-chip' + (active ? ' active' : '') + '" onclick="_editItoEnseigne=\'' + e + '\';renderEditOffres()" style="font-size:12px">' + escHtml(e) + '</button>';
+      return '<button class="filter-chip' + (active ? ' active' : '') + '" onclick="_editItoEnseigne=' + jsq(e) + ';renderEditOffres()" style="font-size:12px">' + escHtml(e) + '</button>';
     }).join('');
   }
 var liste = offresDe(_editItoEnseigne);
@@ -5284,7 +5284,7 @@ var liste = offresDe(_editItoEnseigne);
   var sel = document.getElementById('ito-offre-select');
   if (sel) {
     sel.innerHTML = liste.map(function(of, i) {
-      return '<option value="' + i + '"' + (i === _editItoIndex ? ' selected' : '') + '>' + escHtml(of.titre || '(sans titre)') + (of.mois ? ' — ' + escHtml(of.mois) : '') + '</option>';
+      return '<option value="' + eh(i) + '"' + (i === _editItoIndex ? ' selected' : '') + '>' + escHtml(of.titre || '(sans titre)') + (of.mois ? ' — ' + escHtml(of.mois) : '') + '</option>';
     }).join('') || '<option value="-1">Aucune offre</option>';
   }
   var delBtn = document.getElementById('ito-offre-delete');
@@ -5634,7 +5634,7 @@ function renderOffresITO() {
   if (!db.offresITO || typeof db.offresITO !== 'object') { c.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">Aucune offre disponible</div></div>'; return; }
   var tabs = '<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">';
   ITO_ENSEIGNES.forEach(function(e) {
-    tabs += '<button class="filter-chip' + (_viewItoEnseigne === e ? ' active' : '') + '" onclick="_viewItoEnseigne=\'' + e + '\';_viewItoIndex=0;renderOffresITO()" style="font-size:12px">' + escHtml(e) + '</button>';
+    tabs += '<button class="filter-chip' + (_viewItoEnseigne === e ? ' active' : '') + '" onclick="_viewItoEnseigne=' + jsq(e) + ';_viewItoIndex=0;renderOffresITO()" style="font-size:12px">' + escHtml(e) + '</button>';
   });
   tabs += '</div>';
  var html = tabs;
@@ -5648,7 +5648,7 @@ function renderOffresITO() {
         '<label class="form-label">Offre</label>' +
         '<select class="form-input" onchange="changerOffreView(this.value)">' +
         liste.map(function(of, i) {
-          return '<option value="' + i + '"' + (i === _viewItoIndex ? ' selected' : '') + '>' + escHtml(of.titre || '(sans titre)') + (of.mois ? ' — ' + escHtml(of.mois) : '') + '</option>';
+          return '<option value="' + eh(i) + '"' + (i === _viewItoIndex ? ' selected' : '') + '>' + escHtml(of.titre || '(sans titre)') + (of.mois ? ' — ' + escHtml(of.mois) : '') + '</option>';
         }).join('') +
         '</select></div>';
     }
@@ -5750,10 +5750,10 @@ function filtrerMagasinsMail() {
       '<div style="flex:1;min-width:0">' +
     '<div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(p.name) + '</div>' +
         '<input class="form-input" value="' + escHtml(email) + '" placeholder="email@magasin.com" ' +
-          'onchange="sauverContactMail(\'' + p.id + '\',this.value)" onblur="sauverContactMail(\'' + p.id + '\',this.value)" ' +
+          'onchange="sauverContactMail(' + jsq(p.id) + ',this.value)" onblur="sauverContactMail(' + jsq(p.id) + ',this.value)" ' +
           'style="font-size:12px;padding:4px 8px;margin-top:4px" />' +
         '<input class="form-input" value="' + escHtml(p.email2 || '') + '" placeholder="2e email (facultatif)" ' +
-          'onchange="sauverContactMail(\'' + p.id + '\',this.value,\'email2\')" onblur="sauverContactMail(\'' + p.id + '\',this.value,\'email2\')" ' +
+          'onchange="sauverContactMail(' + jsq(p.id) + ',this.value,\'email2\')" onblur="sauverContactMail(' + jsq(p.id) + ',this.value,\'email2\')" ' +
           'style="font-size:12px;padding:4px 8px;margin-top:4px" />' +
       '</div>' +
     '</div>';
@@ -6064,7 +6064,7 @@ function renderCDSDashboard() {
   var ensFilterEl = document.getElementById('cds-enseigne-filter');
   if (ensFilterEl) {
     ensFilterEl.innerHTML = enseigneNames.map(function(e) {
-      return '<option value="'+e+'">'+e+'</option>';
+      return '<option value="' + eh(e) + '">' + eh(e) + '</option>';
     }).join('');
   }
 
@@ -6088,7 +6088,7 @@ function filterCDSByEnseigne(ens) {
     magFilterEl.style.display = '';
     var magasins = ['Tous', ...new Set(_cdsAllResults.filter(function(r){return r.enseigne===ens;}).map(function(r){return r.magasin;}))];
     magFilterEl.innerHTML = magasins.map(function(m) {
-      return '<option value="'+m+'"'+(m==='Tous'?' selected':'')+'>'+m+'</option>';
+      return '<option value="' + eh(m) + '"'+(m==='Tous'?' selected':'')+'>' + eh(m) + '</option>';
     }).join('');
   }
  renderCDSFilteredResults();
@@ -6113,7 +6113,7 @@ function renderCDSFilteredResults() {
   var quizFilterEl = document.getElementById('cds-quiz-filter');
   if (quizFilterEl) {
     quizFilterEl.innerHTML = quizNames.map(function(q) {
-      return '<option value="'+q+'"'+(q===_cdsFilterQuiz?' selected':'')+'>'+q+'</option>';
+      return '<option value="' + eh(q) + '"'+(q===_cdsFilterQuiz?' selected':'')+'>' + eh(q) + '</option>';
     }).join('');
   }
   if (_cdsFilterQuiz !== 'Tous') filtered = filtered.filter(function(r){return r.quizName===_cdsFilterQuiz;});
@@ -6146,7 +6146,7 @@ var ok = corrects.length > 1
         '</div>';
       }).join('');
     }
-    return '<div class="history-card" onclick="toggleHistory(\'' + cardId + '\')">' +
+    return '<div class="history-card" onclick="toggleHistory(' + jsq(cardId) + ')">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
         '<div>' +
           '<div style="font-size:14px;font-weight:600">' + escHtml(r.quizName) + '</div>' +
@@ -6225,12 +6225,12 @@ function renderMesMagasins() {
         '</div>' +
       '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">' +
-        '<input class="form-input" type="email" value="' + escHtml(p.email || '') + '" placeholder="Email magasin" onchange="sauverContactMail(\'' + p.id + '\',this.value)" style="font-size:12px;padding:6px 8px" />' +
-        '<input class="form-input" type="email" value="' + escHtml(p.email2 || '') + '" placeholder="2e email" onchange="sauverContactMail(\'' + p.id + '\',this.value,\'email2\')" style="font-size:12px;padding:6px 8px" />' +
+        '<input class="form-input" type="email" value="' + escHtml(p.email || '') + '" placeholder="Email magasin" onchange="sauverContactMail(' + jsq(p.id) + ',this.value)" style="font-size:12px;padding:6px 8px" />' +
+        '<input class="form-input" type="email" value="' + escHtml(p.email2 || '') + '" placeholder="2e email" onchange="sauverContactMail(' + jsq(p.id) + ',this.value,\'email2\')" style="font-size:12px;padding:6px 8px" />' +
       '</div>' +
      '<textarea class="form-input" rows="2" placeholder="Notes pour la prochaine visite..." ' +
-        'onchange="sauverCommentairePDV(\'' + p.id + '\',this.value)" ' +
-        'onblur="sauverCommentairePDV(\'' + p.id + '\',this.value)" ' +
+        'onchange="sauverCommentairePDV(' + jsq(p.id) + ',this.value)" ' +
+        'onblur="sauverCommentairePDV(' + jsq(p.id) + ',this.value)" ' +
         'style="font-size:12px;resize:vertical">' + escHtml(p.commentaire || '') + '</textarea>' +
     '</div>';
   }).join('');
@@ -6341,17 +6341,17 @@ function renderFormationsList() {
   }
   c.innerHTML = list.map(function (f) {
     return '<div class="quiz-card" style="align-items:center">' +
-      '<div class="quiz-card-icon" onclick="openFormationPdf(\'' + f.id + '\')">📕</div>' +
-      '<div class="quiz-card-body" onclick="openFormationPdf(\'' + f.id + '\')">' +
+      '<div class="quiz-card-icon" onclick="openFormationPdf(' + jsq(f.id) + ')">📕</div>' +
+      '<div class="quiz-card-body" onclick="openFormationPdf(' + jsq(f.id) + ')">' +
         '<div class="quiz-card-title">' + escHtml(f.title || 'Sans titre') + '</div>' +
         '<div class="quiz-card-meta">' + escHtml(f.category || 'DIVERS') +
           (f.fileSize ? ' · ' + fmtFileSize(f.fileSize) : '') +
           (f.updatedAt ? ' · ' + new Date(f.updatedAt).toLocaleDateString('fr-FR') : '') + '</div>' +
       '</div>' +
-      '<button class="btn btn-secondary btn-sm" style="width:auto;margin-left:6px" title="Télécharger" onclick="downloadFormationPdf(\'' + f.id + '\')">⬇️</button>' +
+      '<button class="btn btn-secondary btn-sm" style="width:auto;margin-left:6px" title="Télécharger" onclick="downloadFormationPdf(' + jsq(f.id) + ')">⬇️</button>' +
       (canEdit
-        ? '<button class="btn btn-secondary btn-sm" style="width:auto;margin-left:4px" title="Modifier" onclick="openFormationEdit(\'' + f.id + '\')">✏️</button>' +
-          '<button class="btn btn-sm" style="width:auto;margin-left:4px;background:var(--brand);color:#fff" title="Supprimer" onclick="deleteFormationDoc(\'' + f.id + '\')">🗑️</button>'
+        ? '<button class="btn btn-secondary btn-sm" style="width:auto;margin-left:4px" title="Modifier" onclick="openFormationEdit(' + jsq(f.id) + ')">✏️</button>' +
+          '<button class="btn btn-sm" style="width:auto;margin-left:4px;background:var(--brand);color:#fff" title="Supprimer" onclick="deleteFormationDoc(' + jsq(f.id) + ')">🗑️</button>'
         : '') +
     '</div>';
   }).join('');
@@ -6508,7 +6508,7 @@ function renderCDSPdvRecap() {
       var noms = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
       return { value: m, label: noms[parseInt(parts[1])-1] + ' ' + parts[0] };
     });
-    moisFilter.innerHTML = '<option value="">Tous les mois</option>' + moisLabels.map(function(m) { return '<option value="' + m.value + '">' + m.label + '</option>'; }).join('');
+    moisFilter.innerHTML = '<option value="">Tous les mois</option>' + moisLabels.map(function(m) { return '<option value="' + eh(m.value) + '">' + eh(m.label) + '</option>'; }).join('');
   }
   var filtered = myResults.filter(function(r) {
     if (selEns && r.enseigne !== selEns) return false;
@@ -6818,8 +6818,8 @@ function renderFormateurSpace() {
         (results.length > 0 ? '<span class="tag" style="margin-left:4px">' + Math.round(passed/results.length*100) + '% réussite</span>' : '') + '</div>' +
       '</div>' +
       '<div class="quiz-card-actions">' +
-        '<button class="btn-icon" onclick="fmtEditQuiz(\'' + q.id + '\')">✏️</button>' +
-        '<button class="btn-icon danger" onclick="fmtDeleteQuiz(\'' + q.id + '\')">🗑️</button>' +
+        '<button class="btn-icon" onclick="fmtEditQuiz(' + jsq(q.id) + ')">✏️</button>' +
+        '<button class="btn-icon danger" onclick="fmtDeleteQuiz(' + jsq(q.id) + ')">🗑️</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -6867,15 +6867,15 @@ function initMgrQuizDetail() {
 
   if (qSel) {
     qSel.innerHTML = '<option value="">Tous les quiz</option>' +
-      quizNames.map(n => `<option value="${n}">${n}</option>`).join('');
+      quizNames.map(n => `<option value="${eh(n)}">${eh(n)}</option>`).join('');
   }
   if (cSel) {
     cSel.innerHTML = '<option value="">Tous les CDS</option>' +
-      cdsNames.map(n => `<option value="${n}">${n}</option>`).join('');
+      cdsNames.map(n => `<option value="${eh(n)}">${eh(n)}</option>`).join('');
   }
   if (eSel) {
     eSel.innerHTML = '<option value="">Toutes enseignes</option>' +
-      enseignes.map(n => `<option value="${n}">${n}</option>`).join('');
+      enseignes.map(n => `<option value="${eh(n)}">${eh(n)}</option>`).join('');
   }
 
   renderMgrQuizDetail();
@@ -6936,7 +6936,7 @@ var ok = corrects.length > 1
       hour:'2-digit', minute:'2-digit'
     });
 
-    return '<div class="history-card" onclick="toggleHistory(\'' + cardId + '\')">' +
+    return '<div class="history-card" onclick="toggleHistory(' + jsq(cardId) + ')">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">' +
         '<div style="flex:1">' +
           '<div style="font-size:14px;font-weight:700;margin-bottom:2px">' + escHtml(r.quizName) + '</div>' +
@@ -6973,7 +6973,7 @@ function initManagePDV() {
   var sel = document.getElementById('pdv-filter-enseigne');
   if (sel) {
     sel.innerHTML = '<option value="">Toutes enseignes</option>' +
-      enseignes.map(function(e){ return '<option>' + e + '</option>'; }).join('');
+      enseignes.map(function(e){ return '<option>' + eh(e) + '</option>'; }).join('');
   }
   renderPDVList();
   initCDSEnseigneSelect();
@@ -7372,8 +7372,10 @@ function applyUpdate() {
   if (btn) btn.textContent = 'Mise à jour...';
   // Vider tous les caches + désinscrire les SW + recharger
   var tasks = [];
-  if (window.caches) tasks.push(caches.keys().then(function(k){ return Promise.all(k.map(function(n){ return caches.delete(n); })); }));
-  if (navigator.serviceWorker) tasks.push(navigator.serviceWorker.getRegistrations().then(function(r){ return Promise.all(r.map(function(w){ return w.unregister(); })); }));
+  // v19.22 : on ne touche qu'aux caches et au Service Worker de CETTE appli (Canon et TCL partagent la même adresse)
+  var _cPfx = PFX.replace(/_$/, '') + '-focus-', _scope = location.href.replace(/[^\/]*([?#].*)?$/, '');
+  if (window.caches) tasks.push(caches.keys().then(function(k){ return Promise.all(k.filter(function(n){ return n.indexOf(_cPfx) === 0; }).map(function(n){ return caches.delete(n); })); }));
+  if (navigator.serviceWorker) tasks.push(navigator.serviceWorker.getRegistrations().then(function(r){ return Promise.all(r.filter(function(w){ return w.scope === _scope; }).map(function(w){ return w.unregister(); })); }));
   Promise.all(tasks).catch(function(){}).then(function() {
     setTimeout(function() { window.location.reload(true); }, 300);
   });
@@ -7850,7 +7852,7 @@ function renderMgrParCDS(resultats, rapports) {
       detail += '<div style="font-size:12px;font-weight:700;color:var(--dark-gray);letter-spacing:1px;text-transform:uppercase;margin:10px 0 4px">Rapports de visite</div>';
       detail += e.rapports.slice().sort(function(a, b) { return new Date(b.date) - new Date(a.date); }).map(function(rp) {
         var lien = rp.docUrl
-          ? '<a href="' + rp.docUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="rapport-open-btn">Ouvrir</a>'
+          ? '<a href="' + safeUrl(rp.docUrl) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="rapport-open-btn">Ouvrir</a>'
           : '<span style="font-size:12px;color:var(--warning)">\u23f3 en attente</span>';
         return '<div class="answer-row">' +
           '<span style="flex-shrink:0">\ud83d\udcc4</span>' +
@@ -7861,7 +7863,7 @@ function renderMgrParCDS(resultats, rapports) {
     }
     if (!detail) detail = '<div style="font-size:12px;color:var(--dark-gray);padding:8px 0">Aucune activit\u00e9 sur la p\u00e9riode s\u00e9lectionn\u00e9e.</div>';
 
-    return '<div class="history-card" onclick="toggleHistory(\'' + cardId + '\')">' +
+    return '<div class="history-card" onclick="toggleHistory(' + jsq(cardId) + ')">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
         '<div style="flex:1;min-width:0">' +
           '<div style="font-size:14px;font-weight:700">' + escHtml(e.nom) + '</div>' +
@@ -7920,7 +7922,7 @@ function renderMgrDashboard() {
   const enseignes = [...new Set(filtered.map(r => r.enseigne).concat(_mgrFilterEnseigne ? [_mgrFilterEnseigne] : []).filter(Boolean))].sort();
   const ensSelect = document.getElementById('mgr-filter-enseigne');
   ensSelect.innerHTML = '<option value="">Toutes enseignes</option>' + enseignes.map(e =>
-    `<option value="${e}"${e===_mgrFilterEnseigne?' selected':''}>${e}</option>`
+    `<option value="${eh(e)}"${e===_mgrFilterEnseigne?' selected':''}>${eh(e)}</option>`
   ).join('');
 
   // Apply enseigne filter
@@ -7932,7 +7934,7 @@ function renderMgrDashboard() {
     const magasins = [...new Set(filtered.map(r => r.magasin).filter(Boolean))].sort();
     magSelect.style.display = '';
     magSelect.innerHTML = '<option value="">Tous magasins</option>' + magasins.map(m =>
-      `<option value="${m}"${m===_mgrFilterMagasin?' selected':''}>${m}</option>`
+      `<option value="${eh(m)}"${m===_mgrFilterMagasin?' selected':''}>${eh(m)}</option>`
     ).join('');
   } else {
     magSelect.style.display = 'none';
@@ -7947,7 +7949,7 @@ function renderMgrDashboard() {
     const quizzes = [...new Set(filtered.map(r => r.quizName).filter(Boolean))].sort();
     quizSelect.style.display = '';
     quizSelect.innerHTML = '<option value="">Tous questionnaires</option>' + quizzes.map(q =>
-      `<option value="${q}"${q===_mgrFilterQuiz?' selected':''}>${q}</option>`
+      `<option value="${eh(q)}"${q===_mgrFilterQuiz?' selected':''}>${eh(q)}</option>`
     ).join('');
   } else {
     quizSelect.style.display = 'none';
@@ -8068,7 +8070,7 @@ var ok = corrects.length > 1
           hour:'2-digit', minute:'2-digit'
         });
 
-        return '<div class="history-card" onclick="toggleHistory(\'' + cardId + '\')">' +
+        return '<div class="history-card" onclick="toggleHistory(' + jsq(cardId) + ')">' +
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">' +
             '<div style="flex:1">' +
               '<div style="font-size:14px;font-weight:700;margin-bottom:2px">' + escHtml(r.quizName) + '</div>' +
@@ -8433,7 +8435,7 @@ function renderFicheCDS() {
     (rapsP.length ? rapsP.slice().sort(function(a, b) { return String(b.date).localeCompare(String(a.date)); }).map(function(r) {
     return '<div class="cc-ligne"><span>' + escHtml(dateRapportFr(r.date)) + ' · ' + escHtml(r.enseigne) + ' · ' + escHtml(r.magasin) + '</span>' +
       (r.supprime ? '<span style="color:var(--dark-gray);font-size:12px">Supprimé</span>' :
-       r.docUrl ? '<a href="' + r.docUrl + '" target="_blank" rel="noopener" class="rapport-open-btn">Ouvrir</a>' : '<span style="color:var(--warning);font-size:12px">⏳</span>') + '</div>';
+       r.docUrl ? '<a href="' + safeUrl(r.docUrl) + '" target="_blank" rel="noopener" class="rapport-open-btn">Ouvrir</a>' : '<span style="color:var(--warning);font-size:12px">⏳</span>') + '</div>';
   }).join('') : '<div class="cc-vide">Aucun rapport sur la période</div>'));
 
   if (anomalies.length) h += ccVolet('ano', '🚩 Anomalies remontées', anomalies.length, anomalies.map(function(l) {
@@ -8470,7 +8472,7 @@ function renderFicheCDS() {
 var _ccVoletsOuverts = { evol: true };
 function ccVolet(cle, titre, badge, corps, defaut) {
   var ouvert = _ccVoletsOuverts.hasOwnProperty(cle) ? _ccVoletsOuverts[cle] : !!defaut;
-  return '<details class="cc-acc"' + (ouvert ? ' open' : '') + ' ontoggle="_ccVoletsOuverts[\'' + cle + '\']=this.open">' +
+  return '<details class="cc-acc"' + (ouvert ? ' open' : '') + ' ontoggle="_ccVoletsOuverts[' + jsq(cle) + ']=this.open">' +
     '<summary><span>' + titre + '</span>' + (badge !== '' && badge != null ? '<em>' + badge + '</em>' : '') + '</summary>' +
     '<div class="cc-acc-body">' + corps + '</div></details>';
 }
@@ -9308,7 +9310,7 @@ function renderDeviceMonitorPanels() {
     var chips = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">' +
       '<button onclick="filterDmLogs(\'\')" class="btn btn-sm btn-secondary" style="width:auto;padding:4px 10px;font-size:12px">Tous (' + logs.length + ')</button>' +
       Object.keys(events).sort().map(function(ev){
-        return '<button onclick="filterDmLogs(\''+ev+'\')" class="btn btn-sm btn-secondary" style="width:auto;padding:4px 10px;font-size:12px">' + escapeHtml(ev) + ' (' + events[ev] + ')</button>';
+        return '<button onclick="filterDmLogs(' + jsq(ev) + ')" class="btn btn-sm btn-secondary" style="width:auto;padding:4px 10px;font-size:12px">' + escapeHtml(ev) + ' (' + events[ev] + ')</button>';
       }).join('') +
     '</div>';
 
@@ -10416,7 +10418,7 @@ function libelleMois() {
 // Ouvre dans une vraie fenetre du navigateur. Indispensable depuis une PWA
 // installee sur iPhone : la vue interne casse l'authentification Microsoft.
 function ouvrirLienExterne(url, titre) {
-  if (!url) return;
+  if (!url || !urlOk(url)) { if (url) showToast('Lien refusé : adresse non sécurisée'); return; }
   try {
     var w = window.open(url, '_blank', 'noopener,noreferrer');
     if (!w) window.location.href = url; // fenetre bloquee par le navigateur
@@ -10447,7 +10449,7 @@ function renderOutils() {
   }
   c.innerHTML = liens.map(function(l, i) {
     return '<div class="quiz-card fade-up" style="animation-delay:' + (i * 0.04).toFixed(2) + 's" ' +
-      'onclick="ouvrirLienExterne(\'' + l.url.replace(/'/g, "\\'") + '\', \'' + escHtml(l.titre).replace(/'/g, "\\'") + '\')">' +
+      'onclick="ouvrirLienExterne(' + jsq(l.url) + ', \'' + escHtml(l.titre).replace(/'/g, "\\'") + '\')">' +
       '<div class="quiz-card-icon">' + iconeOutil(l) + '</div>' +
       '<div class="quiz-card-body">' +
         '<div class="quiz-card-title">' + escHtml(l.titre) + '</div>' +
@@ -10668,7 +10670,7 @@ function renderPersoTuiles() {
     _persoOrdre.map(function(k, i) {
       var t = parK[k], on = !!_persoActives[k];
       return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--beige)' + (on ? '' : ';opacity:0.5') + '">' +
-        '<input type="checkbox" ' + (on ? 'checked' : '') + ' onchange="_persoActives[\'' + k + '\']=this.checked;renderPersoTuiles()" style="width:20px;height:20px;flex-shrink:0">' +
+        '<input type="checkbox" ' + (on ? 'checked' : '') + ' onchange="_persoActives[' + jsq(k) + ']=this.checked;renderPersoTuiles()" style="width:20px;height:20px;flex-shrink:0">' +
         '<span style="font-size:20px">' + t.ic + '</span>' +
         '<span style="flex:1;font-size:14px">' + libelleTuile(t) + '</span>' +
         '<button class="btn-icon" onclick="deplacerTuile(' + i + ',-1)"' + (i === 0 ? ' disabled style="opacity:0.25"' : '') + '>⬆️</button>' +
@@ -10734,7 +10736,7 @@ function renderManageRoles() {
     if (b.id === 'manager') return carte(b.id, b.nom, 'Tous les accès · non modifiable · ' + cpt, '👑', '');
     var meta = accesBase(b.id).length + ' accès en plus du socle · ' + cpt +
       (roleBaseModifie(b.id) ? ' · <span style="color:var(--warning);font-weight:600">modifié</span>' : '');
-    return carte(b.id, b.nom, meta, '🔑', '<button class="btn-icon" onclick="ouvrirRoleForm(\'' + b.id + '\')">✏️</button>');
+    return carte(b.id, b.nom, meta, '🔑', '<button class="btn-icon" onclick="ouvrirRoleForm(' + jsq(b.id) + ')">✏️</button>');
   }).join('');
   html += '<div class="section-label" style="margin-top:18px">Rôles personnalisés</div>';
   if (!db.rolesPerso.length) {
@@ -10743,8 +10745,8 @@ function renderManageRoles() {
     html += db.rolesPerso.map(function(r) {
       var nb = nbComptes(r.id);
       return carte(r.id, r.nom, (r.acces || []).length + ' accès en plus du socle · ' + nb + ' compte' + (nb > 1 ? 's' : ''), '🛡️',
-        '<button class="btn-icon" onclick="ouvrirRoleForm(\'' + r.id + '\')">✏️</button>' +
-        '<button class="btn-icon danger" onclick="supprimerRole(\'' + r.id + '\')">🗑️</button>');
+        '<button class="btn-icon" onclick="ouvrirRoleForm(' + jsq(r.id) + ')">✏️</button>' +
+        '<button class="btn-icon danger" onclick="supprimerRole(' + jsq(r.id) + ')">🗑️</button>');
     }).join('');
   }
   c.innerHTML = html;
@@ -10769,12 +10771,12 @@ function ouvrirRoleForm(id) {
       var tous = ACCES_TOUS.indexOf(a.k) !== -1;
       var on = tous || (r.acces || []).indexOf(a.k) !== -1;
       html += '<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0;cursor:pointer' + (tous ? ';opacity:0.55' : '') + '">' +
-        '<input type="checkbox" class="role-f-acces" value="' + a.k + '"' + (on ? ' checked' : '') + (tous ? ' disabled' : '') + ' style="width:18px;height:18px"> ' +
+        '<input type="checkbox" class="role-f-acces" value="' + eh(a.k) + '"' + (on ? ' checked' : '') + (tous ? ' disabled' : '') + ' style="width:18px;height:18px"> ' +
         a.lbl + (tous ? ' <span style="font-size:12px">(tout le monde)</span>' : '') + '</label>';
     });
   });
   html += '<button class="btn btn-primary mb-8" style="margin-top:14px" onclick="sauverRole()">💾 Enregistrer</button>' +
-    (base && roleBaseModifie(id) ? '<button class="btn btn-secondary mb-8" onclick="retablirRoleBase(\'' + id + '\')">↺ Rétablir les accès d\'origine</button>' : '') +
+    (base && roleBaseModifie(id) ? '<button class="btn btn-secondary mb-8" onclick="retablirRoleBase(' + jsq(id) + ')">↺ Rétablir les accès d\'origine</button>' : '') +
     '<button class="btn btn-secondary" onclick="document.getElementById(\'role-form-panel\').style.display=\'none\'">Annuler</button>';
   var p = document.getElementById('role-form-panel');
   p.innerHTML = html;
@@ -10861,7 +10863,7 @@ function renderRolesPersoCheckboxes(selected) {
   var w = document.getElementById('account-form-roles-perso');
   if (!w) return;
   w.innerHTML = db.rolesPerso.map(function(r) {
-    return '<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" value="' + r.id + '"' +
+    return '<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer"><input type="checkbox" value="' + eh(r.id) + '"' +
       ((selected || []).indexOf(r.id) !== -1 ? ' checked' : '') + ' onchange="majChampsCompte()" /> 🛡️ ' + escHtml(r.nom) + '</label>';
   }).join('');
   majChampsCompte();
@@ -11026,7 +11028,7 @@ function renderManageAccounts() {
     var cur = secSel.value;
     secSel.innerHTML = '<option value="">— Choisir le secteur —</option>';
     getSectors().forEach(function(s) {
-      secSel.innerHTML += '<option value="'+s+'"'+(s===cur?' selected':'')+'>'+s+'</option>';
+      secSel.innerHTML += '<option value="' + eh(s) + '"'+(s===cur?' selected':'')+'>' + eh(s) + '</option>';
     });
   }
 
@@ -11039,7 +11041,7 @@ function renderManageAccounts() {
     var roles = (acc.roles||[]).map(function(r){ return '<span class="role-badge '+r+'">'+escHtml(roleLabel(r))+'</span>'; }).join(' ');
     var ensHtml = '';
     if ((acc.roles||[]).indexOf('referent') !== -1 && acc.enseignes && acc.enseignes.length) {
-      ensHtml = '<div style="margin-top:4px">' + acc.enseignes.map(function(e){return '<span class="enseigne-tag">'+e+'</span>';}).join(' ') + '</div>';
+      ensHtml = '<div style="margin-top:4px">' + acc.enseignes.map(function(e){return '<span class="enseigne-tag">'+eh(e)+'</span>';}).join(' ') + '</div>';
     }
     return '<div class="quiz-card fade-up" style="animation-delay:'+(i*0.04)+'s">' +
       '<div style="width:40px;height:40px;border-radius:12px;background:var(--brand);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0">'+escHtml(getInitials(acc.name))+'</div>' +
@@ -11077,7 +11079,7 @@ function showAddAccount() {
   document.getElementById('account-form-panel').style.display = 'block';
   var secSel = document.getElementById('account-form-sector');
   secSel.innerHTML = '<option value="">— Choisir le secteur —</option>';
-  getSectors().forEach(function(s) { secSel.innerHTML += '<option value="'+s+'">'+s+'</option>'; });
+  getSectors().forEach(function(s) { secSel.innerHTML += '<option value="' + eh(s) + '">' + eh(s) + '</option>'; });
 }
 
 function hideAccountForm() {
@@ -11095,7 +11097,7 @@ function populateEnseigneCheckboxes(selectedList) {
   if (!allEns.length) { wrap.innerHTML = '<span style="font-size:12px;color:var(--dark-gray)">Aucune enseigne dans les PDV</span>'; return; }
   wrap.innerHTML = allEns.map(function(e) {
     var checked = (selectedList||[]).indexOf(e) !== -1 ? ' checked' : '';
-    return '<label><input type="checkbox" value="'+e+'"'+checked+' />' + e + '</label>';
+    return '<label><input type="checkbox" value="' + eh(e) + '"'+checked+' />' + eh(e) + '</label>';
   }).join('');
 }
 
@@ -11263,13 +11265,13 @@ function ouvrirMailPromosModal() {
   var ensSel = document.getElementById('mail-promos-enseigne');
   if (ensSel) {
     ensSel.innerHTML = '<option value="">— Choisir —</option>' + (db.enseignes||[]).map(function(e){
-      return '<option value="' + e.replace(/"/g,'&quot;') + '">' + e + '</option>';
+      return '<option value="' + e.replace(/"/g,'&quot;') + '">' + eh(e) + '</option>';
     }).join('');
   }
   var catSel = document.getElementById('mail-promos-cat');
   if (catSel) {
     catSel.innerHTML = '<option value="">Toutes les catégories</option>' + (db.categories||[]).map(function(c){
-      var n = c.name||c; return '<option value="' + n.replace(/"/g,'&quot;') + '">' + n + '</option>';
+      var n = c.name||c; return '<option value="' + n.replace(/"/g,'&quot;') + '">' + eh(n) + '</option>';
     }).join('');
   }
   if (ensSel) ensSel.value = (promoFilterEnseigne && promoFilterEnseigne !== 'Toutes') ? promoFilterEnseigne : '';
@@ -11377,7 +11379,7 @@ function renderPromoFilters() {
   var perWrap = document.getElementById('promo-filter-periode');
   if (perWrap) perWrap.innerHTML = PROMO_PERIODES.map(function(x) {
     var on = promoMasque.indexOf(x[0]) === -1;
-    return '<div class="promo-filter-chip' + (on ? ' active' : '') + '" style="' + (on ? '' : 'opacity:0.55;text-decoration:line-through') + '" onclick="togglePromoPeriode(\'' + x[0] + '\')">' + (on ? '👁 ' : '🚫 ') + x[1] + '</div>';
+    return '<div class="promo-filter-chip' + (on ? ' active' : '') + '" style="' + (on ? '' : 'opacity:0.55;text-decoration:line-through') + '" onclick="togglePromoPeriode(' + jsq(x[0]) + ')">' + (on ? '👁 ' : '🚫 ') + x[1] + '</div>';
   }).join('');
   var ensWrap = document.getElementById('promo-filter-enseignes');
   if (ensWrap) {
@@ -11502,7 +11504,7 @@ function renderPromoGantt() {
       var fini = e < today;
       var enCours = s <= today && e >= today;
       var prix = p.price ? ' · ' + parseFloat(p.price).toFixed(2).replace('.', ',') + ' €' : '';
-      html += '<div onclick="event.stopPropagation();showPromoTooltip(this,\'' + p.id + '\')" style="position:relative;padding:7px 0 9px;cursor:pointer;border-bottom:1px solid var(--light-gray)' + (fini ? ';opacity:0.45' : '') + '">' +
+      html += '<div onclick="event.stopPropagation();showPromoTooltip(this,' + jsq(p.id) + ')" style="position:relative;padding:7px 0 9px;cursor:pointer;border-bottom:1px solid var(--light-gray)' + (fini ? ';opacity:0.45' : '') + '">' +
         '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">' +
           '<div style="font-size:12px;font-weight:600;min-width:0;overflow-wrap:anywhere;line-height:1.3">' +
             '<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + color + ';margin-right:5px;vertical-align:1px"></span>' +
@@ -11549,11 +11551,11 @@ div.style.cssText = 'position:fixed;z-index:9999;background:var(--white);border-
       return '<a href="' + commFichierUrl(f.id) + '" target="_blank" rel="noopener" title="Ouvrir / imprimer" style="display:block;color:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📕 ' + escHtml(f.nom) + ' ↗</a>';
     }).join('') + '</div>' +
     '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
-      '<button onclick="' + fermer + 'envoyerIlvPromo(\'' + p.id + '\')" style="' + boutonStyle + '">📧 Envoyer ' + (ilv.length > 1 ? 'les ' + ilv.length + ' ILV' : 'l\'ILV') + '</button></div>';
+      '<button onclick="' + fermer + 'envoyerIlvPromo(' + jsq(p.id) + ')" style="' + boutonStyle + '">📧 Envoyer ' + (ilv.length > 1 ? 'les ' + ilv.length + ' ILV' : 'l\'ILV') + '</button></div>';
   var editBtn = (currentAccount && (hasRole('manager') || hasRole('admin')))
     ? '<div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">' +
-        '<button onclick="' + fermer + 'dupliquerPromo(\'' + p.id + '\')" style="' + boutonStyle + '" title="Repartir de cette promo pour en creer une nouvelle">\u29c9 Dupliquer</button>' +
-        '<button onclick="' + fermer + 'editPromo(\'' + p.id + '\')" style="' + boutonStyle + '">✏️ Modifier</button>' +
+        '<button onclick="' + fermer + 'dupliquerPromo(' + jsq(p.id) + ')" style="' + boutonStyle + '" title="Repartir de cette promo pour en creer une nouvelle">\u29c9 Dupliquer</button>' +
+        '<button onclick="' + fermer + 'editPromo(' + jsq(p.id) + ')" style="' + boutonStyle + '">✏️ Modifier</button>' +
       '</div>' : '';
   div.innerHTML += editBtn;
   var rect = el.getBoundingClientRect();
@@ -11587,7 +11589,7 @@ function showPromoForm(id, copie) {
   // Populate enseignes multi-select
   var ensWrap = document.getElementById('promo-form-enseignes');
   ensWrap.innerHTML = (db.enseignes || []).map(function(e) {
-    return '<label><input type="checkbox" value="' + e + '" /> ' + e + '</label>';
+    return '<label><input type="checkbox" value="' + eh(e) + '" /> ' + eh(e) + '</label>';
   }).join('');
 
   if (id) {
@@ -11828,7 +11830,7 @@ function confMagasins(ens) {
   return l.sort();
 }
 function confOpt(liste, val, vide) {
-  return '<option value="">' + vide + '</option>' + liste.map(function(x) {
+  return '<option value="">' + eh(vide) + '</option>' + liste.map(function(x) {
     return '<option value="' + escHtml(x) + '"' + (x === val ? ' selected' : '') + '>' + escHtml(x) + '</option>';
   }).join('');
 }
@@ -11874,7 +11876,7 @@ function ouvrirConformite() {
         '<div style="font-size:13px;font-weight:700;margin-bottom:6px">' + escHtml(p.name) +
         ' <span style="font-weight:500;color:var(--dark-gray);font-size:12px">jusqu\'au ' + formatDateFR(p.end) + '</span></div>' +
         '<div class="promo-filter-bar" style="margin:0">' + CONF_STATUTS.map(function(s) {
-          return '<div class="promo-filter-chip' + (st === s[0] ? ' active' : '') + '" onclick="confStatut(' + i + ',\'' + s[0] + '\')">' + s[1] + ' ' + s[2] + '</div>';
+          return '<div class="promo-filter-chip' + (st === s[0] ? ' active' : '') + '" onclick="confStatut(' + i + ',' + jsq(s[0]) + ')">' + s[1] + ' ' + s[2] + '</div>';
         }).join('') + '</div></div>';
     }).join('');
     var nb = promos.filter(function(p) { return _conf.statuts[p.id]; }).length;
@@ -12230,7 +12232,7 @@ function editCategory(idx) {
   document.getElementById('category-form-title').textContent = 'Modifier la catégorie';
   document.getElementById('category-form-name').value = name;
   document.getElementById('category-form-idx').value = idx;
-  var radio = document.querySelector('input[name="cat-color"][value="'+color+'"]');
+  var radio = document.querySelector('input[name="cat-color"][value="' + eh(color) + '"]');
   if (radio) radio.checked = true;
   document.getElementById('category-form-panel').style.display = 'block';
 }
@@ -12268,7 +12270,7 @@ function renderTemplatesFilter() {
   if (!wrap) return;
   var enseignes = ['Toutes'].concat(getEnseignesForTemplates());
   wrap.innerHTML = enseignes.map(function(e) {
-    return '<div class="promo-filter-chip'+(tplFilterEnseigne===e?' active':'')+'" onclick="setTplFilter(\''+e.replace(/'/g,"\\'")+'\')">' + e + '</div>';
+    return '<div class="promo-filter-chip'+(tplFilterEnseigne===e?' active':'')+'" onclick="setTplFilter(' + jsq(e) + ')">' + eh(e) + '</div>';
   }).join('');
 }
 
@@ -12305,7 +12307,7 @@ function renderTemplatesList() {
   }
   c.innerHTML = templates.map(function(t, i) {
     var fieldCount = (t.fields||[]).length;
-    return '<div class="quiz-card fade-up" style="animation-delay:'+(i*0.04)+'s" onclick="editExistingTemplate(\''+t.id+'\')">' +
+    return '<div class="quiz-card fade-up" style="animation-delay:'+(i*0.04)+'s" onclick="editExistingTemplate(' + jsq(t.id) + ')">' +
       '<div class="quiz-card-body">' +
         '<div class="quiz-card-title">'+escHtml(t.name)+'</div>' +
         '<div class="quiz-card-meta">'+escHtml(t.enseigne)+' · '+fieldCount+' question'+(fieldCount>1?'s':'')+'</div>' +
@@ -12320,7 +12322,7 @@ function initTemplateEdit() {
   var sel = document.getElementById('tpl-enseigne');
   var ensList = getEnseignesForTemplates();
   sel.innerHTML = '<option value="">— Choisir —</option>';
-  ensList.forEach(function(e) { sel.innerHTML += '<option value="'+e+'">'+e+'</option>'; });
+  ensList.forEach(function(e) { sel.innerHTML += '<option value="' + eh(e) + '">' + eh(e) + '</option>'; });
   // Avertissement si le référent n'a aucune enseigne assignée
   var warn = document.getElementById('tpl-no-enseigne-warn');
   if (!warn) {
@@ -12472,7 +12474,7 @@ function renderRapportsFilter() {
   }
   var enseignes = ['Toutes'].concat(visibles);
   wrap.innerHTML = enseignes.map(function(e) {
-    return '<div class="promo-filter-chip'+(rapportsFilterEnseigne===e?' active':'')+'" onclick="setRapportsFilter(\''+e.replace(/'/g,"\\'")+'\')">'+e+'</div>';
+    return '<div class="promo-filter-chip'+(rapportsFilterEnseigne===e?' active':'')+'" onclick="setRapportsFilter(' + jsq(e) + ')">' + eh(e) + '</div>';
   }).join('');
 }
 
@@ -12499,11 +12501,11 @@ function renderRapportsList() {
     return;
   }
   c.innerHTML = rapports.map(function(r,i) {
-    var docLink = r.docUrl ? '<a href="'+r.docUrl+'" target="_blank" class="rapport-open-btn">📄 Ouvrir Google Doc</a>' : '<span style="font-size:12px;color:var(--warning)">⏳ En attente de sync</span>';
+    var docLink = r.docUrl ? '<a href="' + safeUrl(r.docUrl) + '" target="_blank" class="rapport-open-btn">📄 Ouvrir Google Doc</a>' : '<span style="font-size:12px;color:var(--warning)">⏳ En attente de sync</span>';
     var isOwner = currentAccount && r.cdsId === currentAccount.id;
-    var editBtn = isOwner ? '<button class="btn btn-secondary btn-sm" onclick="editRapport(\''+r.id+'\')" style="width:auto;font-size:12px;margin-top:6px">✏️ Modifier</button>' : '';
-    var retryBtn = (isOwner && !r.docUrl) ? '<button class="btn btn-primary btn-sm" onclick="retryRapport(\''+r.id+'\')" style="width:auto;font-size:12px;margin-top:6px">🔄 Réessayer la génération</button>' : '';
-    var delBtn = canDeleteRapport(r) ? '<button class="btn btn-sm" onclick="deleteRapport(\''+r.id+'\')" style="width:auto;font-size:12px;margin-top:6px;margin-left:6px;background:#CC0000;color:#fff">🗑️ Supprimer</button>' : '';
+    var editBtn = isOwner ? '<button class="btn btn-secondary btn-sm" onclick="editRapport(' + jsq(r.id) + ')" style="width:auto;font-size:12px;margin-top:6px">✏️ Modifier</button>' : '';
+    var retryBtn = (isOwner && !r.docUrl) ? '<button class="btn btn-primary btn-sm" onclick="retryRapport(' + jsq(r.id) + ')" style="width:auto;font-size:12px;margin-top:6px">🔄 Réessayer la génération</button>' : '';
+    var delBtn = canDeleteRapport(r) ? '<button class="btn btn-sm" onclick="deleteRapport(' + jsq(r.id) + ')" style="width:auto;font-size:12px;margin-top:6px;margin-left:6px;background:#CC0000;color:#fff">🗑️ Supprimer</button>' : '';
     return '<div class="rapport-card fade-up" style="animation-delay:'+(i*0.04)+'s">' +
       '<div class="rapport-card-title">'+escHtml(r.magasin)+' — '+escHtml(r.enseigne)+'</div>' +
       '<div class="rapport-card-meta">' +
@@ -12587,11 +12589,11 @@ function editRapport(rapportId) {
       });
       html += '</div>';
     } else if (f.type === 'photo') {
-      html += '<div class="photo-capture-wrap" id="photos_'+f.id+'"><label class="photo-add-btn"><input type="file" accept="image/*" capture="environment" onchange="onPhotoCaptured(event,\''+f.id+'\')" style="display:none" />📷 Ajouter</label></div>';
+      html += '<div class="photo-capture-wrap" id="photos_'+f.id+'"><label class="photo-add-btn"><input type="file" accept="image/*" capture="environment" onchange="onPhotoCaptured(event,' + jsq(f.id) + ')" style="display:none" />📷 Ajouter</label></div>';
     }
     
     if (f.type !== 'photo' && f.withPhoto) {
-      html += '<div class="photo-capture-wrap" id="photos_'+f.id+'" style="margin-top:6px"><label class="photo-add-btn"><input type="file" accept="image/*" capture="environment" onchange="onPhotoCaptured(event,\''+f.id+'\')" style="display:none" />📷 Photo</label></div>';
+      html += '<div class="photo-capture-wrap" id="photos_'+f.id+'" style="margin-top:6px"><label class="photo-add-btn"><input type="file" accept="image/*" capture="environment" onchange="onPhotoCaptured(event,' + jsq(f.id) + ')" style="display:none" />📷 Photo</label></div>';
     }
     
     html += '</div>';
@@ -12618,7 +12620,7 @@ function initRapportNew() {
   var sel = document.getElementById('rapport-pick-enseigne');
   sel.innerHTML = '<option value="">— Choisir l\'enseigne —</option>';
   var enseignes = getVisibleEnseignes();
-  enseignes.forEach(function(e) { sel.innerHTML += '<option value="'+e+'">'+e+'</option>'; });
+  enseignes.forEach(function(e) { sel.innerHTML += '<option value="' + eh(e) + '">' + eh(e) + '</option>'; });
   document.getElementById('rapport-template-group').style.display = 'none';
   document.getElementById('rapport-no-template').style.display = 'none';
 }
@@ -12636,7 +12638,7 @@ function onRapportEnseigneChange() {
   }
   document.getElementById('rapport-no-template').style.display = 'none';
   document.getElementById('rapport-template-group').style.display = 'block';
-  templates.forEach(function(t) { tplSel.innerHTML += '<option value="'+t.id+'">'+escHtml(t.name)+'</option>'; });
+  templates.forEach(function(t) { tplSel.innerHTML += '<option value="' + eh(t.id) + '">'+escHtml(t.name)+'</option>'; });
 }
 
 function startRapportFill() {
@@ -12666,12 +12668,12 @@ function renderRapportFillFields() {
         return '<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;margin-bottom:6px"><input type="checkbox" name="rfield_'+f.id+'" value="'+escHtml(opt)+'" /> '+escHtml(opt)+'</label>';
       }).join('');
     } else if (f.type === 'photo') {
-      inputHtml = '<div class="photo-preview-wrap" id="photos_'+f.id+'"><div class="photo-add-btn" onclick="triggerPhotoCapture(\''+f.id+'\')"><span>📷</span><span style="font-size:12px">Ajouter</span></div></div>';
+      inputHtml = '<div class="photo-preview-wrap" id="photos_'+f.id+'"><div class="photo-add-btn" onclick="triggerPhotoCapture(' + jsq(f.id) + ')"><span>📷</span><span style="font-size:12px">Ajouter</span></div></div>';
     }
     // Photo addon for non-photo fields
     var photoAddon = '';
     if (f.type !== 'photo' && f.withPhoto) {
-      photoAddon = '<div style="margin-top:8px"><div style="font-size:12px;color:var(--dark-gray);margin-bottom:4px">📷 Photo (optionnel)</div><div class="photo-preview-wrap" id="photos_'+f.id+'"><div class="photo-add-btn" onclick="triggerPhotoCapture(\''+f.id+'\')"><span>📷</span><span style="font-size:12px">Ajouter</span></div></div></div>';
+      photoAddon = '<div style="margin-top:8px"><div style="font-size:12px;color:var(--dark-gray);margin-bottom:4px">📷 Photo (optionnel)</div><div class="photo-preview-wrap" id="photos_'+f.id+'"><div class="photo-add-btn" onclick="triggerPhotoCapture(' + jsq(f.id) + ')"><span>📷</span><span style="font-size:12px">Ajouter</span></div></div></div>';
     }
     var reqStar = f.required ? ' <span style="color:var(--brand)">*</span>' : '';
     return '<div class="rapport-fill-section">' +
@@ -12724,7 +12726,7 @@ function onPhotoCaptured(e) {
 thumbWrap.style.cssText = 'position:relative;display:inline-block';
 var thumbIdx = rapportPhotos[fid].length - 1;
 thumbWrap.innerHTML = '<img alt="Photo" src="'+compressed+'" class="photo-thumb" />' +
-  '<button onclick="removeRapportPhoto(\''+fid+'\','+thumbIdx+',this.parentNode)" ' +
+  '<button onclick="removeRapportPhoto(' + jsq(fid) + ','+thumbIdx+',this.parentNode)" ' +
   'style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;' +
   'background:var(--brand);color:white;border:2px solid white;font-size:12px;' +
   'cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;' +
@@ -12921,7 +12923,7 @@ function renderRefEnsFilter() {
   var enseignes = (currentAccount && currentAccount.enseignes) ? currentAccount.enseignes : [];
   if (!enseignes.length) { wrap.innerHTML = '<div style="font-size:12px;color:var(--dark-gray)">Aucune enseigne assignée</div>'; return; }
   wrap.innerHTML = enseignes.map(function(e) {
-    return '<div class="promo-filter-chip' + (refFilterEnseigne === e ? ' active' : '') + '" onclick="setRefFilter(\'' + e.replace(/'/g, "\\'") + '\')">' + e + '</div>';
+    return '<div class="promo-filter-chip' + (refFilterEnseigne === e ? ' active' : '') + '" onclick="setRefFilter(' + jsq(e) + ')">' + eh(e) + '</div>';
   }).join('');
 }
 
@@ -12943,9 +12945,9 @@ function renderRefRapportsList() {
 
   c.innerHTML = rapports.map(function(r, i) {
     var docLink = r.docUrl
-      ? '<a href="' + r.docUrl + '" target="_blank" class="rapport-open-btn" onclick="event.stopPropagation()">📄 Ouvrir</a>'
+      ? '<a href="' + safeUrl(r.docUrl) + '" target="_blank" class="rapport-open-btn" onclick="event.stopPropagation()">📄 Ouvrir</a>'
       : '<span style="font-size:12px;color:var(--warning)">⏳ Sync requise</span>';
-    var deleteBtn = '<button class="btn-icon danger" onclick="event.stopPropagation();deleteRefRapport(\'' + r.id + '\')" title="Supprimer" style="margin-left:auto">&#128465;</button>';
+    var deleteBtn = '<button class="btn-icon danger" onclick="event.stopPropagation();deleteRefRapport(' + jsq(r.id) + ')" title="Supprimer" style="margin-left:auto">&#128465;</button>';
     return '<div class="rapport-card fade-up" style="animation-delay:' + (i * 0.04) + 's">' +
       '<div style="display:flex;align-items:flex-start;gap:10px">' +
         '<div style="flex:1">' +
@@ -13079,7 +13081,7 @@ function renderPlv() {
   var html = '<div style="display:flex;gap:6px;margin-bottom:12px">' + PLV_CATS.map(function(c) {
     var on = c === _plvCat;
     var n = d.commandes.filter(function(x) { return x.categorie === c && String(x.cdsId) === String(_plvCdsId); }).length;
-    return '<button onclick="plvSetCat(\'' + c + '\')" style="flex:1;padding:9px;border-radius:20px;cursor:pointer;border:1px solid ' + (on ? 'var(--brand)' : '#ccc') + ';background:' + (on ? 'var(--brand)' : '#fff') + ';color:' + (on ? '#fff' : '#555') + ';font-weight:700;font-size:13px">' + c + (n ? ' (' + n + ')' : '') + '</button>';
+    return '<button onclick="plvSetCat(' + jsq(c) + ')" style="flex:1;padding:9px;border-radius:20px;cursor:pointer;border:1px solid ' + (on ? 'var(--brand)' : '#ccc') + ';background:' + (on ? 'var(--brand)' : '#fff') + ';color:' + (on ? '#fff' : '#555') + ';font-weight:700;font-size:13px">' + eh(c) + (n ? ' (' + n + ')' : '') + '</button>';
   }).join('') + '</div>';
   if (hasRole('manager') || hasRole('admin')) {
     var opts = d.adresses.filter(function(a) { return a.cdsId; }).map(function(a) { return { id: String(a.cdsId), name: plvCdsName(a.cdsId) }; });
@@ -13095,7 +13097,7 @@ function renderPlv() {
   html += '<div style="display:flex;gap:8px;margin-bottom:10px">' +
     '<select class="form-select" style="flex:1;min-width:0" onchange="_plvSection=this.value;renderPlvList()"><option value="">Toutes les sections</option>' +
     secs.map(function(s) { return '<option value="' + escHtml(s) + '"' + (s === _plvSection ? ' selected' : '') + '>' + escHtml(s || 'Divers') + '</option>'; }).join('') + '</select>' +
-    (d.catalogues[_plvCat] && d.catalogues[_plvCat].fileId ? '<button class="btn btn-secondary btn-sm" style="width:auto;white-space:nowrap" onclick="plvOpenCat(\'' + _plvCat + '\')">📖 Catalogue</button>' : '') + '</div>';
+    (d.catalogues[_plvCat] && d.catalogues[_plvCat].fileId ? '<button class="btn btn-secondary btn-sm" style="width:auto;white-space:nowrap" onclick="plvOpenCat(' + jsq(_plvCat) + ')">📖 Catalogue</button>' : '') + '</div>';
   html += '<div style="font-size:12px;color:var(--dark-gray);margin-bottom:10px">Stock ' + escHtml(P('plvStockSource')) + ' : ' + escHtml(d.stockDate || 'non importé') + '</div>';
   head.innerHTML = html;
   renderPlvList();
@@ -13125,9 +13127,9 @@ function renderPlvList() {
       '<div style="font-size:12px;color:var(--dark-gray);margin-top:2px">' + escHtml(String(p.code)) + (p.lot ? ' · ' + escHtml(p.lot) : '') +
       ' · <span style="color:' + col + ';font-weight:700">' + (reste < 0 ? 'Négatif ' + reste : (dispo <= 0 ? 'Épuisé' : 'Dispo ' + reste)) + '</span></div></div>' +
       '<div style="display:flex;align-items:center;gap:2px;flex-shrink:0">' +
-      '<button class="btn-icon" onclick="plvStep(\'' + code + '\',-1)">−</button>' +
-      '<input type="number" min="0" inputmode="numeric" value="' + (qty || '') + '" placeholder="0" onchange="plvSetQty(\'' + code + '\',this.value)" style="width:48px;text-align:center;padding:6px;border:1px solid #ccc;border-radius:8px;font-size:14px">' +
-      '<button class="btn-icon" onclick="plvStep(\'' + code + '\',1)">+</button></div></div>';
+      '<button class="btn-icon" onclick="plvStep(' + jsq(code) + ',-1)">−</button>' +
+      '<input type="number" min="0" inputmode="numeric" value="' + (qty || '') + '" placeholder="0" onchange="plvSetQty(' + jsq(code) + ',this.value)" style="width:48px;text-align:center;padding:6px;border:1px solid #ccc;border-radius:8px;font-size:14px">' +
+      '<button class="btn-icon" onclick="plvStep(' + jsq(code) + ',1)">+</button></div></div>';
   });
   if (!items.length) html = '<div class="empty-state"><div class="empty-state-title">Aucune PLV trouvée</div></div>';
   html += '<button class="btn btn-primary" onclick="plvSave()" style="margin-top:12px">💾 Enregistrer ma commande ' + _plvCat + ' (' + nb + ' réf.)</button>' +
@@ -13369,9 +13371,9 @@ function plvAdminRow(p) {
   return '<div style="display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--beige)' + (off ? ';opacity:0.5' : '') + '">' +
     '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">' + escHtml(p.nom) + '</div>' +
     '<div style="font-size:12px;color:var(--dark-gray)">' + escHtml(p.categorie) + ' · ' + escHtml(String(p.code)) + ' · stock ' + (+p.stock || 0) + (off ? ' · désactivée' : '') + '</div></div>' +
-    '<button class="btn-icon" title="Modifier" onclick="plvOpenEdit(\'' + k + '\')">✏️</button>' +
-    '<button class="btn-icon" title="' + (off ? 'Réactiver' : 'Désactiver') + '" onclick="plvToggle(\'' + k + '\')">' + (off ? '↩️' : '🚫') + '</button>' +
-    '<button class="btn-icon danger" title="Supprimer" onclick="plvDelete(\'' + k + '\')">🗑️</button></div>';
+    '<button class="btn-icon" title="Modifier" onclick="plvOpenEdit(' + jsq(k) + ')">✏️</button>' +
+    '<button class="btn-icon" title="' + (off ? 'Réactiver' : 'Désactiver') + '" onclick="plvToggle(' + jsq(k) + ')">' + (off ? '↩️' : '🚫') + '</button>' +
+    '<button class="btn-icon danger" title="Supprimer" onclick="plvDelete(' + jsq(k) + ')">🗑️</button></div>';
 }
 function renderPlvAdmin() {
   var c = document.getElementById('plv-admin-content'); if (!c) return;
@@ -13384,9 +13386,9 @@ function renderPlvAdmin() {
   PLV_CATS.forEach(function(cat) {
     var cf = d.catalogues[cat];
     h += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--beige)">' +
-      '<div style="flex:1;min-width:0"><b>' + cat + '</b><div style="font-size:12px;color:var(--dark-gray)">' + (cf && cf.fileId ? escHtml(cf.fileName || '') + ' · ' + escHtml(cf.date || '') : 'Aucun catalogue') + '</div></div>' +
-      (cf && cf.fileId ? '<button class="btn-icon" title="Voir" onclick="plvOpenCat(\'' + cat + '\')">👁️</button>' : '') +
-      '<button class="btn btn-secondary btn-sm" style="width:auto" onclick="plvPickPdf(\'' + cat + '\')">📤 ' + (cf && cf.fileId ? 'Remplacer' : 'Déposer') + '</button></div>';
+      '<div style="flex:1;min-width:0"><b>' + eh(cat) + '</b><div style="font-size:12px;color:var(--dark-gray)">' + (cf && cf.fileId ? escHtml(cf.fileName || '') + ' · ' + escHtml(cf.date || '') : 'Aucun catalogue') + '</div></div>' +
+      (cf && cf.fileId ? '<button class="btn-icon" title="Voir" onclick="plvOpenCat(' + jsq(cat) + ')">👁️</button>' : '') +
+      '<button class="btn btn-secondary btn-sm" style="width:auto" onclick="plvPickPdf(' + jsq(cat) + ')">📤 ' + (cf && cf.fileId ? 'Remplacer' : 'Déposer') + '</button></div>';
   });
   h += plvScanHtml();
   h += '<div class="section-label" style="margin-top:18px">📤 Bons de commande</div>';
@@ -13395,11 +13397,11 @@ function renderPlvAdmin() {
     d.commandes.forEach(function(x) { if (x.categorie === cat) { who[x.cdsId] = 1; tot += (+x.qty || 0); } });
     var ids = Object.keys(who);
     h += '<div style="border:1px solid var(--beige);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--white)">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center"><b>' + cat + '</b><span class="tag">' + ids.length + ' CDS · ' + tot + ' ex.</span></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center"><b>' + eh(cat) + '</b><span class="tag">' + ids.length + ' CDS · ' + tot + ' ex.</span></div>' +
       (ids.length ? '<div style="font-size:12px;color:var(--dark-gray);margin-top:4px">' + escHtml(ids.map(plvCdsName).join(', ')) + '</div>' : '') +
       '<div style="display:flex;gap:8px;margin-top:10px">' +
-      '<button class="btn btn-primary btn-sm" style="flex:1" onclick="plvExport(\'' + cat + '\')">⬇️ Télécharger</button>' +
-      '<button class="btn btn-secondary btn-sm" style="flex:1" onclick="plvReset(\'' + cat + '\')">♻️ Réinitialiser</button></div></div>';
+      '<button class="btn btn-primary btn-sm" style="flex:1" onclick="plvExport(' + jsq(cat) + ')">⬇️ Télécharger</button>' +
+      '<button class="btn btn-secondary btn-sm" style="flex:1" onclick="plvReset(' + jsq(cat) + ')">♻️ Réinitialiser</button></div></div>';
   });
   var abs = d.plv.filter(function(p) { return !plvOff(p) && (p.absentLK === true || String(p.absentLK).toLowerCase() === 'true'); });
   if (abs.length) h += '<div class="section-label" style="margin-top:18px">⚠️ Absentes du dernier stock (' + abs.length + ')</div>' +
@@ -13412,7 +13414,7 @@ function renderPlvAdmin() {
   h += '<div class="section-label" style="margin-top:18px">📚 Catalogue</div><div id="plv-edit-form"></div>' +
     '<div style="display:flex;gap:6px;margin-bottom:10px">' + PLV_CATS.map(function(cat) {
       var on = cat === _plvAdminCat;
-      return '<button onclick="_plvAdminCat=\'' + cat + '\';renderPlvAdmin()" style="flex:1;padding:7px;border-radius:20px;cursor:pointer;border:1px solid ' + (on ? 'var(--brand)' : '#ccc') + ';background:' + (on ? 'var(--brand)' : '#fff') + ';color:' + (on ? '#fff' : '#555') + ';font-weight:600;font-size:12px">' + cat + '</button>';
+      return '<button onclick="_plvAdminCat=' + jsq(cat) + ';renderPlvAdmin()" style="flex:1;padding:7px;border-radius:20px;cursor:pointer;border:1px solid ' + (on ? 'var(--brand)' : '#ccc') + ';background:' + (on ? 'var(--brand)' : '#fff') + ';color:' + (on ? '#fff' : '#555') + ';font-weight:600;font-size:12px">' + cat + '</button>';
     }).join('') + '</div>' +
     '<button class="btn btn-secondary btn-sm" style="margin-bottom:8px" onclick="plvOpenEdit(null)">+ Nouvelle PLV</button>' +
     d.plv.filter(function(p) { return p.categorie === _plvAdminCat; }).sort(function(a, b) { return (+a.ordre || 0) - (+b.ordre || 0); }).map(plvAdminRow).join('');
@@ -13437,7 +13439,7 @@ function renderPlvEditForm() {
     '<div style="font-weight:700;margin-bottom:8px">' + (e.key ? 'Modifier la PLV' : 'Nouvelle PLV') + '</div>' +
     plvField('Code interne', 'plv-f-code', e.code) + plvField('Nom', 'plv-f-nom', e.nom) +
     '<div class="form-group"><label class="form-label">Catégorie</label><select class="form-select" id="plv-f-cat">' +
-    PLV_CATS.map(function(c) { return '<option' + (c === e.categorie ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></div>' +
+    PLV_CATS.map(function(c) { return '<option' + (c === e.categorie ? ' selected' : '') + '>' + eh(c) + '</option>'; }).join('') + '</select></div>' +
     '<div class="form-group"><label class="form-label">Section (page du catalogue)</label>' +
     '<select class="form-select" id="plv-f-sec" onchange="document.getElementById(\'plv-f-secnew\').style.display=this.value===\'__new\'?\'\':\'none\'">' +
     Object.keys(secs).sort().map(function(s) { return '<option value="' + escHtml(s) + '"' + (s === e.section ? ' selected' : '') + '>' + escHtml(s) + '</option>'; }).join('') +
@@ -13671,8 +13673,13 @@ function plvReset(cat, skip) {
 
 function escHtml(str) {
   if (!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// v19.22 sécurité : échappement texte (garde les 0), argument JS dans onclick, URL sûre
+function eh(v) { return v === null || v === undefined ? '' : escHtml(String(v)); }
+function jsq(v) { return escHtml(JSON.stringify(v === null || v === undefined ? '' : String(v))); }
+function urlOk(u) { return /^https?:\/\//i.test(String(u || '').trim()); }
+function safeUrl(u) { u = String(u || '').trim(); return /^(javascript|vbscript|data):/i.test(u) ? '#' : escHtml(u); }
 
 
 </script>
@@ -13892,7 +13899,7 @@ function jeuStats(periode) {
   apiJsonp({ action: 'jeuStats', periode: periode }, { timeout: 30000, retries: 1 }).then(function(r) {
     if (!r || r.status !== 'ok' || !r.questions) throw new Error((r && r.message) || 'réponse vide');
     var chip = function(p, lbl) {
-      return '<button class="filter-chip' + (p === periode ? ' active' : '') + '" style="margin-right:6px" onclick="jeuStats(\'' + p + '\')">' + lbl + '</button>';
+      return '<button class="filter-chip' + (p === periode ? ' active' : '') + '" style="margin-right:6px" onclick="jeuStats(' + jsq(p) + ')">' + lbl + '</button>';
     };
     var coul = function(p) { return p >= 70 ? '#2E9E5B' : p >= 40 ? '#E0A100' : '#D4483B'; };
     var h = '<div style="margin-bottom:12px">' + chip('semaine', 'Cette semaine') + chip('mois', 'Ce mois') + chip('tout', 'Depuis le début') + '</div>';
@@ -14865,12 +14872,12 @@ function ccRenderPeriodes(myResults) {
   var liste = Object.keys(mois).sort().reverse();
   var estMois = /^\d{4}-\d{2}$/.test(mgrPeriod);
   el.innerHTML = CC_PERIODES.map(function(p) {
-    return '<div class="filter-chip ' + (mgrPeriod === p[0] ? 'active' : '') + '" onclick="setMgrPeriod(\'' + p[0] + '\')">' + p[1] + '</div>';
+    return '<div class="filter-chip ' + (mgrPeriod === p[0] ? 'active' : '') + '" onclick="setMgrPeriod(' + jsq(p[0]) + ')">' + p[1] + '</div>';
   }).join('') +
     '<select class="form-select" onchange="if(this.value)setMgrPeriod(this.value)" style="width:auto;min-width:120px;font-size:12px;padding:6px 28px 6px 10px;margin:0 0 6px;' + (estMois ? 'border-color:var(--brand);color:var(--brand);font-weight:700' : '') + '">' +
     '<option value="">Un mois…</option>' + liste.map(function(k) {
       var p = k.split('-');
-      return '<option value="' + k + '"' + (k === mgrPeriod ? ' selected' : '') + '>' + CC_MOIS[+p[1] - 1] + ' ' + p[0] + '</option>';
+      return '<option value="' + eh(k) + '"' + (k === mgrPeriod ? ' selected' : '') + '>' + CC_MOIS[+p[1] - 1] + ' ' + p[0] + '</option>';
     }).join('') + '</select>';
 }
 
@@ -15201,7 +15208,7 @@ function renderFicheMagasin() {
     return '<details class="cc-acc"><summary><span>' + escHtml(dateRapportFr(r.date)) + ' · ' + escHtml(r.cdsName || '') + ' · ' + escHtml(r.templateName || '') + '</span>' +
       (r.supprime ? '<em>supprimé</em>' : '') + '</summary><div class="cc-acc-body">' +
       (ans.length ? ans.map(function(a) { return '<div class="cc-ligne" style="display:block"><span class="cc-sub">' + escHtml(a.label) + '</span><div>' + escHtml(a.answer) + '</div></div>'; }).join('') : '<div class="cc-vide">' + (r.supprime ? 'Rapport supprimé : réponses consultables dans le compte rendu consolidé' : 'Pas de réponse détaillée') + '</div>') +
-      (r.docUrl ? '<a href="' + r.docUrl + '" target="_blank" rel="noopener" class="rapport-open-btn" style="margin-top:8px;display:inline-block">📄 Ouvrir le rapport</a>' : '') +
+      (r.docUrl ? '<a href="' + safeUrl(r.docUrl) + '" target="_blank" rel="noopener" class="rapport-open-btn" style="margin-top:8px;display:inline-block">📄 Ouvrir le rapport</a>' : '') +
       '</div></details>';
   }).join('') : '<div class="cc-vide">Aucun rapport sur la période</div>');
 
@@ -15221,8 +15228,8 @@ function renderFicheMagasin() {
 // Flèches « précédent / suivant » des fiches
 function ccNavFleches(type) {
   return '<div style="display:flex;gap:4px;flex-shrink:0">' +
-    '<button class="btn-icon" title="Précédent" onclick="ccNaviguer(\'' + type + '\',-1)" style="font-size:18px">‹</button>' +
-    '<button class="btn-icon" title="Suivant" onclick="ccNaviguer(\'' + type + '\',1)" style="font-size:18px">›</button></div>';
+    '<button class="btn-icon" title="Précédent" onclick="ccNaviguer(' + jsq(type) + ',-1)" style="font-size:18px">‹</button>' +
+    '<button class="btn-icon" title="Suivant" onclick="ccNaviguer(' + jsq(type) + ',1)" style="font-size:18px">›</button></div>';
 }
 function ccNaviguer(type, sens) {
   if (type === 'mag') {
@@ -15277,7 +15284,7 @@ function ccRenderJeu(periode) {
     return;
   }
   var s = c.stats, et = c.etat || (_ccJeu.semaine && _ccJeu.semaine.etat) || null, comptes = ccComptesCDS();
-  var chip = function(p, lbl) { return '<div class="filter-chip ' + (p === _ccJeuPeriode ? 'active' : '') + '" onclick="ccRenderJeu(\'' + p + '\')">' + lbl + '</div>'; };
+  var chip = function(p, lbl) { return '<div class="filter-chip ' + (p === _ccJeuPeriode ? 'active' : '') + '" onclick="ccRenderJeu(' + jsq(p) + ')">' + lbl + '</div>'; };
   var s0 = (s.semaines || [])[0] || { joueurs: 0, ids: [] };
   var h = '<div class="filter-bar" style="margin-bottom:12px">' + chip('semaine', 'Cette semaine') + chip('mois', 'Ce mois') + chip('tout', 'Depuis le début') +
     '<button class="btn-icon" onclick="ccChargerJeu(_ccJeuPeriode,true).then(function(){ccRenderJeu()})" title="Actualiser" style="margin-left:auto">🔄</button></div>';
@@ -15295,7 +15302,7 @@ function ccRenderJeu(periode) {
   // Classement secteurs
   if (et) {
     var cls = et[_ccJeuCls] || [];
-    var b = function(k, l) { return '<div class="filter-chip ' + (k === _ccJeuCls ? 'active' : '') + '" onclick="_ccJeuCls=\'' + k + '\';ccRenderJeu()">' + l + '</div>'; };
+    var b = function(k, l) { return '<div class="filter-chip ' + (k === _ccJeuCls ? 'active' : '') + '" onclick="_ccJeuCls=' + jsq(k) + ';ccRenderJeu()">' + l + '</div>'; };
     h += '<div class="cc-card"><div class="cc-title">🏆 Classement des secteurs</div><div class="filter-bar" style="margin-bottom:8px">' + b('semaineCls', 'Semaine') + b('moisCls', 'Mois') + '</div>' +
       (cls.length ? cls.map(function(x, i) {
         return '<div class="cc-ligne"><span>' + (['🥇', '🥈', '🥉'][i] || (i + 1) + '.') + ' <b>' + escHtml(x.secteur) + '</b> <span class="cc-sub">' + x.joueurs + '/' + x.comptes + ' joueur(s)</span></span><b>' + x.points + ' pts</b></div>';
@@ -15317,7 +15324,7 @@ function ccRenderJeu(periode) {
   h += '</div>';
   // Questions les plus ratées
   var qs = (s.questions || []).slice(0, 6);
-  h += '<div class="cc-card"><div class="cc-title">❓ Questions les plus ratées <button class="btn btn-ghost btn-sm" onclick="window._jeuOuvrirStats=\'' + _ccJeuPeriode + '\';goTo(\'screen-jeu\')" style="margin-left:auto;width:auto;padding:4px 8px;font-size:12px">Toutes →</button></div>' +
+  h += '<div class="cc-card"><div class="cc-title">❓ Questions les plus ratées <button class="btn btn-ghost btn-sm" onclick="window._jeuOuvrirStats=' + jsq(_ccJeuPeriode) + ';goTo(\'screen-jeu\')" style="margin-left:auto;width:auto;padding:4px 8px;font-size:12px">Toutes →</button></div>' +
     (qs.length ? ccBarres(qs.map(function(q) { return { lbl: q.q, sub: q.vus + ' réponse(s) · ' + jeuTemps(q.tempsMoyen) + (q.erreur ? ' · erreur fréquente : ' + q.erreur.texte : ''), v: q.reussite }; }), { taux: true }) : '<div class="cc-vide">Aucune question jouée</div>') + '</div>';
   el.innerHTML = h;
   renderCCKpis();
@@ -15425,7 +15432,7 @@ function ccRenderActivite() {
     ['📱', tot.cnx, 'Connexions à l\'appli'], ['⚡', tot.actifs + '/' + comptes.length, 'Comptes actifs'], ['📅', tot.jours, 'Jours d\'activité (cumul)'],
     ['🧭', totEv['ecran'] || 0, 'Écrans consultés'], ['✋', tot.actions, 'Actions enregistrées']
   ].map(function(x) { return '<div class="cc-kpi"><div class="cc-kpi-i">' + x[0] + '</div><div class="cc-kpi-v">' + x[1] + '</div><div class="cc-kpi-l">' + x[2] + '</div></div>'; }).join('') + '</div>';
-  var th = function(k, l) { return '<th style="cursor:pointer;white-space:nowrap" onclick="_ccActTri=\'' + k + '\';ccRenderActivite()">' + l + (tri === k ? ' ▾' : '') + '</th>'; };
+  var th = function(k, l) { return '<th style="cursor:pointer;white-space:nowrap" onclick="_ccActTri=' + jsq(k) + ';ccRenderActivite()">' + l + (tri === k ? ' ▾' : '') + '</th>'; };
   h += '<div class="cc-card"><div class="cc-title">👥 Activité par compte · ' + escHtml(ccLibellePeriode()) + ' <button class="btn-icon" onclick="ccChargerSuivi(true)" title="Actualiser" style="margin-left:auto;font-size:15px">🔄</button></div>' +
     '<div class="cc-table-scroll"><table class="cc-table"><thead><tr>' + th('nom', 'Compte') + th('der', 'Dernière activité') + th('jours', 'Jours actifs') + th('cnx', 'Connexions') +
     '<th>Quiz</th><th>Rapports</th><th>Jeu</th><th>Écrans</th><th>Outils</th></tr></thead><tbody>' +
@@ -15503,7 +15510,7 @@ function synPoserBouton(id) {
   if (!syntheseAutorise()) return;
   var cible = id === 'screen-rapports' ? document.getElementById('rapports-list-container') : document.getElementById('ref-rapports-list');
   if (!cible || document.getElementById('btn-syn-' + id)) return;
-  cible.insertAdjacentHTML('beforebegin', '<button class="btn btn-secondary mb-12" id="btn-syn-' + id + '" onclick="ouvrirSynthese(\'' + id + '\')">🧩 Compte rendu consolidé (toutes les réponses par question)</button>');
+  cible.insertAdjacentHTML('beforebegin', '<button class="btn btn-secondary mb-12" id="btn-syn-' + id + '" onclick="ouvrirSynthese(' + jsq(id) + ')">🧩 Compte rendu consolidé (toutes les réponses par question)</button>');
 }
 function ouvrirSynthese(origine) {
   if (!syntheseAutorise()) { goTo('screen-rapports'); return; }
@@ -15597,7 +15604,7 @@ function synRendu() {
       return '<option value="' + escHtml(x.id) + '"' + (x.id === _syn.tpl ? ' selected' : '') + '>' + escHtml(x.enseigne) + ' — ' + escHtml(x.name) + ' (' + x.n + ')</option>';
     }).join('') + '</select>' +
     '<select class="form-select" style="flex:1;min-width:130px" onchange="_syn.mois=this.value;_syn.moisChoisi=true;synRendu()">' +
-      '<option value=""' + (!_syn.mois ? ' selected' : '') + '>Toutes les périodes</option>' + moisL.map(function(m) { return '<option value="' + m + '"' + (m === _syn.mois ? ' selected' : '') + '>' + synLibMois(m) + ' (' + t.mois[m] + ')</option>'; }).join('') + '</select></div>';
+      '<option value=""' + (!_syn.mois ? ' selected' : '') + '>Toutes les périodes</option>' + moisL.map(function(m) { return '<option value="' + eh(m) + '"' + (m === _syn.mois ? ' selected' : '') + '>' + synLibMois(m) + ' (' + t.mois[m] + ')</option>'; }).join('') + '</select></div>';
   var sel = lignes.filter(function(l) { return l.templateId === _syn.tpl && (!_syn.mois || l.mois === _syn.mois); });
   // Filtre secteur (manager / admin)
   var secteurs = {};
@@ -16000,12 +16007,12 @@ function liveRendreEditeur() {
       '<textarea class="form-input" id="le-q-' + i + '" rows="2" maxlength="300" placeholder="Énoncé de la question">' + escHtml(q.question) + '</textarea>' +
       '<div style="font-size:12px;color:var(--dark-gray);margin:8px 0 2px">Réponses (coche la bonne) — 2 minimum</div>';
     [0, 1, 2, 3].forEach(function(k) {
-      h += '<label style="display:flex;align-items:center;gap:8px;margin-top:6px"><input type="radio" name="le-b-' + i + '" value="' + k + '"' + (q.bonne === k ? ' checked' : '') + ' aria-label="Bonne réponse ' + 'ABCD'.charAt(k) + '">' +
+      h += '<label style="display:flex;align-items:center;gap:8px;margin-top:6px"><input type="radio" name="le-b-' + i + '" value="' + eh(k) + '"' + (q.bonne === k ? ' checked' : '') + ' aria-label="Bonne réponse ' + 'ABCD'.charAt(k) + '">' +
         '<span aria-hidden="true" style="color:' + LIVE_COUL[k] + '">' + LIVE_SYM[k] + '</span>' +
         '<input class="form-input" id="le-r-' + i + '-' + k + '" maxlength="120" style="flex:1" placeholder="Réponse ' + 'ABCD'.charAt(k) + '" value="' + escHtml(q.reps[k] || '') + '"></label>';
     });
     h += '<div style="margin-top:8px;font-size:12px"><label>Temps pour répondre : <select class="form-select" id="le-d-' + i + '" style="width:auto;display:inline-block">' +
-      [10, 15, 20, 30, 45, 60].map(function(s) { return '<option value="' + s + '"' + (q.duree === s ? ' selected' : '') + '>' + s + ' s</option>'; }).join('') + '</select></label></div></div>';
+      [10, 15, 20, 30, 45, 60].map(function(s) { return '<option value="' + eh(s) + '"' + (q.duree === s ? ' selected' : '') + '>' + s + ' s</option>'; }).join('') + '</select></label></div></div>';
   });
   h += '<button type="button" class="btn btn-secondary" onclick="liveAjouterQ()">+ Ajouter une question</button>' +
     '<button type="button" class="btn btn-secondary" style="margin-top:8px" onclick="liveImporter(true)">📥 Ajouter des questions depuis un fichier</button>' +
