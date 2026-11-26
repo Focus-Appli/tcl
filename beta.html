@@ -16517,5 +16517,214 @@ envoyerMailPromos = function() {
   }
 };
 </script>
+<!-- ═══════ v19.26 : DRIVE PRIVÉ — lecteur PDF intégré + images servies par l'appli ═══════ -->
+<style>
+#lecteur-doc{position:fixed;inset:0;z-index:99999;background:#1f2126;display:flex;flex-direction:column}
+#lecteur-doc .ld-barre{display:flex;align-items:center;gap:6px;padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;background:#2b2e35;color:#fff}
+#lecteur-doc .ld-titre{flex:1;min-width:0;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#lecteur-doc .ld-btn{background:rgba(255,255,255,.12);border:0;color:#fff;border-radius:10px;padding:8px 11px;font-size:15px;cursor:pointer}
+#lecteur-doc .ld-pages{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px 0 calc(env(safe-area-inset-bottom) + 10px);text-align:center}
+#lecteur-doc .ld-page{display:block;margin:0 auto 10px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4);max-width:100%}
+#lecteur-doc .ld-info{color:#ccc;font-size:13px;padding:30px 16px}
+#lecteur-doc img.ld-image{max-width:100%;height:auto}
+</style>
+<script>
+// Fichier lu par l'appli (Apps Script) — mode 'image' : miniature si l'image est très lourde
+function fichierAppBlob(id, nom, mode) {
+  var cle = id + (mode ? '|' + mode : '');
+  if (_fichiersApp[cle]) return Promise.resolve(_fichiersApp[cle]);
+  return apiPostJSON({ action: 'getCommFichier', id: id, mode: mode || '' }).then(function(res) {
+    if (!res || res.status !== 'ok') throw new Error((res && res.message) || 'indisponible');
+    var bin = atob(res.data), a = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    res.data = null; bin = null;
+    var f = { nom: res.nom || nom || 'document.pdf', blob: new Blob([a], { type: res.mime || 'application/pdf' }) };
+    _fichiersApp[cle] = f;
+    return f;
+  });
+}
+
+// ── Lecteur intégré (PDF via PDF.js, images) : fonctionne aussi dans l'appli installée sur iPhone ──
+var _lecteur = null;
+function fermerLecteurDoc() {
+  var el = document.getElementById('lecteur-doc');
+  if (el) el.remove();
+  if (_lecteur) {
+    try { if (_lecteur.obs) _lecteur.obs.disconnect(); } catch (e) {}
+    try { if (_lecteur.pdf) _lecteur.pdf.destroy(); } catch (e) {}
+    if (_lecteur.url) URL.revokeObjectURL(_lecteur.url);
+  }
+  _lecteur = null;
+}
+function lecteurPartager() {
+  var L = _lecteur; if (!L || !L.f) return;
+  var fichier = new File([L.f.blob], L.f.nom, { type: L.f.blob.type || 'application/pdf' });
+  if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
+    navigator.share({ files: [fichier], title: L.f.nom }).catch(function(e) { if (e && e.name !== 'AbortError') showToast('⚠️ ' + e.message); });
+  } else { telechargerBlob(L.f.blob, L.f.nom); showToast('⬇️ ' + L.f.nom); }
+}
+function lecteurTelecharger() { var L = _lecteur; if (L && L.f) { telechargerBlob(L.f.blob, L.f.nom); showToast('⬇️ ' + L.f.nom); } }
+function ouvrirLecteurDoc(titre) {
+  fermerLecteurDoc();
+  _lecteur = { f: null };
+  var el = document.createElement('div');
+  el.id = 'lecteur-doc';
+  el.innerHTML = '<div class="ld-barre"><button class="ld-btn" onclick="fermerLecteurDoc()" aria-label="Fermer">✕</button>' +
+    '<div class="ld-titre">' + escHtml(titre || 'Document') + '</div>' +
+    '<button class="ld-btn" onclick="lecteurPartager()" aria-label="Partager">📤</button>' +
+    '<button class="ld-btn" onclick="lecteurTelecharger()" aria-label="Télécharger">⬇️</button></div>' +
+    '<div class="ld-pages" id="ld-pages"><div class="ld-info">⏳ Chargement du document…</div></div>';
+  document.body.appendChild(el);
+  return _lecteur;
+}
+
+function afficherPdfLecteur(L, f) {
+  var zone = document.getElementById('ld-pages');
+  return f.blob.arrayBuffer().then(function(buf) {
+    return plvPdfJs().then(function(lib) { return lib.getDocument({ data: new Uint8Array(buf) }).promise; });
+  }).then(function(pdf) {
+    if (_lecteur !== L) { pdf.destroy(); return; }
+    L.pdf = pdf;
+    zone.innerHTML = '';
+    var largeur = Math.min(zone.clientWidth - 16, 900), ratio = Math.min(window.devicePixelRatio || 1, 2);
+    var rendre = function(cv) {
+      if (cv.dataset.fait) return;
+      cv.dataset.fait = '1';
+      pdf.getPage(Number(cv.dataset.page)).then(function(page) {
+        var vp1 = page.getViewport({ scale: 1 }), sc = largeur / vp1.width, vp = page.getViewport({ scale: sc * ratio });
+        cv.width = vp.width; cv.height = vp.height;
+        cv.style.height = Math.round(vp.height / ratio) + 'px';
+        return page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+      }).catch(function() {});
+    };
+    L.obs = new IntersectionObserver(function(ent) { ent.forEach(function(e) { if (e.isIntersecting) rendre(e.target); }); }, { root: zone, rootMargin: '600px 0px' });
+    return pdf.getPage(1).then(function(p1) {
+      var vp1 = p1.getViewport({ scale: 1 }), h = Math.round(largeur * vp1.height / vp1.width);
+      for (var i = 1; i <= pdf.numPages; i++) {
+        var cv = document.createElement('canvas');
+        cv.className = 'ld-page'; cv.dataset.page = i;
+        cv.style.width = largeur + 'px'; cv.style.height = h + 'px';
+        zone.appendChild(cv); L.obs.observe(cv);
+      }
+    });
+  });
+}
+
+// Ouvrir / télécharger un document de l'appli (remplace la version v19.25 : plus de fenêtre Drive)
+ouvrirFichierApp = function(id, nom, telecharger) {
+  if (!id) { showToast('❌ Fichier introuvable'); return; }
+  if (!navigator.onLine) { showToast('⚠️ Connexion requise pour ouvrir le document'); return; }
+  if (telecharger) {
+    showToast('⏳ ' + (nom || 'Document') + '…');
+    fichierAppBlob(id, nom).then(function(f) { telechargerBlob(f.blob, f.nom); showToast('⬇️ ' + f.nom); })
+      .catch(function(e) { showToast('❌ ' + (nom || 'Fichier') + ' : ' + e.message); });
+    return;
+  }
+  var L = ouvrirLecteurDoc(nom);
+  fichierAppBlob(id, nom).then(function(f) {
+    if (_lecteur !== L) return;
+    L.f = f;
+    var t = document.querySelector('#lecteur-doc .ld-titre'); if (t) t.textContent = f.nom;
+    var type = f.blob.type || '';
+    if (/pdf/.test(type) || /\.pdf$/i.test(f.nom)) {
+      return afficherPdfLecteur(L, f).catch(function(e) {
+        var z = document.getElementById('ld-pages');
+        if (z) z.innerHTML = '<div class="ld-info">Aperçu impossible (' + escHtml(e.message) + ').<br><br>Utilisez ⬇️ ou 📤 en haut à droite.</div>';
+      });
+    }
+    var zone = document.getElementById('ld-pages');
+    if (/^image\//.test(type)) {
+      L.url = URL.createObjectURL(f.blob);
+      zone.innerHTML = '<img class="ld-image" alt="" src="' + L.url + '">';
+    } else {
+      zone.innerHTML = '<div class="ld-info">' + escHtml(f.nom) + '<br><br>Ce type de fichier ne s\'affiche pas dans l\'appli : utilisez ⬇️ ou 📤 en haut à droite.</div>';
+    }
+  }).catch(function(e) {
+    var z = document.getElementById('ld-pages');
+    if (z) z.innerHTML = '<div class="ld-info">❌ ' + escHtml(e.message) + '</div>';
+  });
+};
+
+// ── Images (communications, logos) : chargées par l'appli, jamais par un lien Drive ──
+var IMG_DRIVE = /(?:lh3\.googleusercontent\.com\/d\/|drive\.google\.com\/(?:thumbnail\?(?:[^#]*&)?id=|uc\?(?:[^#]*&)?id=|file\/d\/))([\w-]{25,})/;
+var IMG_VIDE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+var _imgFile = [], _imgEnCours = 0, _imgUrls = {};
+var _imgDb = null;
+function imgDb() {
+  if (_imgDb) return _imgDb;
+  _imgDb = new Promise(function(res) {
+    try {
+      var r = indexedDB.open('focus-images', 1);
+      r.onupgradeneeded = function() { r.result.createObjectStore('img'); };
+      r.onsuccess = function() { res(r.result); };
+      r.onerror = function() { res(null); };
+    } catch (e) { res(null); }
+  });
+  return _imgDb;
+}
+function imgCache(id, blob) {
+  return imgDb().then(function(db) {
+    if (!db) return null;
+    return new Promise(function(res) {
+      try {
+        var tx = db.transaction('img', blob ? 'readwrite' : 'readonly'), st = tx.objectStore('img');
+        var rq = blob ? st.put(blob, id) : st.get(id);
+        rq.onsuccess = function() { res(blob ? null : rq.result || null); };
+        rq.onerror = function() { res(null); };
+      } catch (e) { res(null); }
+    });
+  });
+}
+function imgPoser(id, url) {
+  [].forEach.call(document.querySelectorAll('img[data-drive-id="' + id + '"]'), function(im) { if (im.src !== url) im.src = url; });
+}
+function imgSuivante() {
+  while (_imgEnCours < 3 && _imgFile.length) {
+    var id = _imgFile.shift();
+    _imgEnCours++;
+    (function(id) {
+      imgCache(id).then(function(b) {
+        if (b) return b;
+        if (!navigator.onLine) return null;
+        return fichierAppBlob(id, '', 'image').then(function(f) { imgCache(id, f.blob); delete _fichiersApp[id + '|image']; return f.blob; });
+      }).then(function(b) {
+        if (b) { _imgUrls[id] = URL.createObjectURL(b); imgPoser(id, _imgUrls[id]); }
+        else delete _imgUrls[id];
+      }).catch(function() { delete _imgUrls[id]; }).then(function() { _imgEnCours--; imgSuivante(); });
+    })(id);
+  }
+}
+var _imgObs = ('IntersectionObserver' in window) ? new IntersectionObserver(function(ent) {
+  ent.forEach(function(e) {
+    if (!e.isIntersecting) return;
+    _imgObs.unobserve(e.target);
+    var id = e.target.getAttribute('data-drive-id');
+    if (_imgUrls[id]) { if (_imgUrls[id] !== 1) imgPoser(id, _imgUrls[id]); return; }
+    _imgUrls[id] = 1; _imgFile.push(id); imgSuivante();
+  });
+}, { rootMargin: '300px 0px' }) : null;
+function imgPrendre(im) {
+  var src = im.getAttribute('src') || '';
+  var m = IMG_DRIVE.exec(src);
+  if (!m) return;
+  im.setAttribute('data-drive-id', m[1]);
+  var deja = _imgUrls[m[1]];
+  im.setAttribute('src', deja && deja !== 1 ? deja : IMG_VIDE);
+  if (deja) return;
+  if (_imgObs) _imgObs.observe(im); else { _imgUrls[m[1]] = 1; _imgFile.push(m[1]); imgSuivante(); }
+}
+function imgScanner(racine) {
+  if (!racine || !racine.querySelectorAll) return;
+  if (racine.tagName === 'IMG') imgPrendre(racine);
+  [].forEach.call(racine.querySelectorAll('img[src*="googleusercontent.com/d/"],img[src*="drive.google.com/"]'), imgPrendre);
+}
+new MutationObserver(function(muts) {
+  muts.forEach(function(mu) {
+    if (mu.type === 'attributes') { if (mu.target.tagName === 'IMG') imgPrendre(mu.target); return; }
+    [].forEach.call(mu.addedNodes, function(n) { if (n.nodeType === 1) imgScanner(n); });
+  });
+}).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+imgScanner(document.body);
+</script>
 </body>
 </html>
