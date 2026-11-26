@@ -7074,7 +7074,7 @@ function importPDVFile(input) {
       if (status) status.innerHTML = '<span style="color:var(--success)">✅ ' + newList.length + ' PDV importés</span>';
       showToast('✅ ' + newList.length + ' PDV importés');
     } catch(err) {
-      if (status) status.innerHTML = '<span style="color:var(--brand)">❌ Erreur : ' + err.message + '</span>';
+      if (status) status.innerHTML = '<span style="color:var(--brand)">❌ Erreur : ' + escHtml(err && err.message) + '</span>';
     }
   };
   reader.readAsArrayBuffer(file);
@@ -8860,6 +8860,7 @@ function withToken(payload) {
   if (!payload || payload.action === 'login' || payload.action === 'resetConfirm') return payload;
   var t = sessionToken();
   if (t) payload.token = t;
+  if (t) payload.filtre = 1;   // v19.23 : le serveur n'envoie que les données utiles à ce compte
   return payload;
 }
 
