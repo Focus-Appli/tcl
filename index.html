@@ -1515,7 +1515,7 @@ window.appliquerMarqueSplash(window.marqueInitiale());
     <div data-reglages="Promos" style="margin-bottom:10px"></div>
     <button id="btn-mail-promos" class="btn btn-primary" onclick="ouvrirMailPromosModal()" style="margin-bottom:8px">📧 Envoyer les promos par mail</button>
     <button class="btn btn-secondary" onclick="ouvrirIlvEnseigne()" style="margin-bottom:14px">📕 ILV par enseigne</button>
-    <button class="btn btn-secondary" onclick="ouvrirConformite()" style="margin-bottom:14px">✅ Relevé conformité en magasin</button>
+    <button class="btn btn-secondary" onclick="ouvrirConformite()" style="margin-bottom:14px">✅ Relevé conformité par enseigne</button>
     <!-- Enseigne filters -->
     <div class="section-label">Enseigne</div>
     <div class="promo-filter-bar" id="promo-filter-enseignes"></div>
@@ -11851,25 +11851,23 @@ function confAfficher(h) {
   if (apres && sc) apres.scrollTop = sc;
 }
 
+var CONF_TOUTE = 'Toute l\'enseigne';   // relevé fait pour l'enseigne entière (secteur du CDS)
 function ouvrirConformite() {
   var h = '<div style="font-size:15px;font-weight:700;margin-bottom:4px">✅ Relevé conformité</div>' +
-    '<div style="font-size:12px;color:var(--dark-gray);margin-bottom:12px">Les promos en cours sont-elles en place dans le magasin ?</div>';
+    '<div style="font-size:12px;color:var(--dark-gray);margin-bottom:12px">Les promos en cours sont-elles en place dans les magasins de l\'enseigne de ton secteur ?</div>';
   var ensL = confEnseignes();
   if (!ensL.length) {
     ouvrirModalParam(h + '<div style="font-size:13px;color:var(--dark-gray);padding:10px 0">Aucune promo en cours pour les enseignes de ton secteur.</div>' +
       '<button class="btn btn-secondary" onclick="fermerModalParam()">Fermer</button>');
     return;
   }
-  if (ensL.indexOf(_conf.ens) === -1) { _conf.ens = ensL.length === 1 ? ensL[0] : ''; _conf.mag = ''; _conf.statuts = {}; }
-  var magL = _conf.ens ? confMagasins(_conf.ens) : [];
-  if (magL.indexOf(_conf.mag) === -1) _conf.mag = '';
-  h += '<div class="form-group"><label class="form-label">Enseigne</label><select class="form-select" onchange="_conf.ens=this.value;_conf.mag=\'\';_conf.statuts={};ouvrirConformite()">' +
+  if (ensL.indexOf(_conf.ens) === -1) { _conf.ens = ensL.length === 1 ? ensL[0] : ''; _conf.statuts = {}; }
+  _conf.mag = CONF_TOUTE;
+  h += '<div class="form-group"><label class="form-label">Enseigne</label><select class="form-select" onchange="_conf.ens=this.value;_conf.statuts={};ouvrirConformite()">' +
     confOpt(ensL, _conf.ens, '— Choisir l\'enseigne —') + '</select></div>';
-  if (_conf.ens) h += '<div class="form-group"><label class="form-label">Magasin</label><select class="form-select" onchange="_conf.mag=this.value;ouvrirConformite()">' +
-    confOpt(magL, _conf.mag, '— Choisir le magasin —') + '</select></div>';
-  if (_conf.ens && _conf.mag) {
-    var d = confDernier(_conf.ens, _conf.mag);
-    if (d) h += '<div style="font-size:12px;color:var(--dark-gray);margin-bottom:8px">Dernier relevé dans ce magasin : ' + formatDateFR(String(d.date).slice(0, 10)) + '</div>';
+  if (_conf.ens) {
+    var d = confDernier(_conf.ens, CONF_TOUTE);
+    if (d) h += '<div style="font-size:12px;color:var(--dark-gray);margin-bottom:8px">Dernier relevé pour cette enseigne : ' + formatDateFR(String(d.date).slice(0, 10)) + '</div>';
     var promos = confPromosEnCours(_conf.ens);
     h += promos.map(function(p, i) {
       var st = _conf.statuts[p.id] || '';
@@ -11901,9 +11899,9 @@ function enregistrerConformite() {
   var lignes = confPromosEnCours(_conf.ens).filter(function(p) { return _conf.statuts[p.id]; }).map(function(p) {
     return { promoId: String(p.id), promoName: String(p.name || ''), statut: _conf.statuts[p.id] };
   });
-  if (!_conf.ens || !_conf.mag || !lignes.length) { showToast('Indique au moins un statut'); return; }
+  if (!_conf.ens || !lignes.length) { showToast('Indique au moins un statut'); return; }
   var id = 'conf_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
-  var releve = { id: id, date: new Date().toISOString(), enseigne: _conf.ens, magasin: _conf.mag, lignes: lignes, commentaire: String(_conf.com || '').slice(0, 500) };
+  var releve = { id: id, date: new Date().toISOString(), enseigne: _conf.ens, magasin: CONF_TOUTE, lignes: lignes, commentaire: String(_conf.com || '').slice(0, 500) };
   try {
     var loc = confLocal(); loc.push({ id: id, date: releve.date, enseigne: releve.enseigne, magasin: releve.magasin, nb: lignes.length });
     localStorage.setItem(PFX + 'conformite', JSON.stringify(loc.slice(-200)));
@@ -11914,7 +11912,7 @@ function enregistrerConformite() {
     else showToast(alerte ? '⚠️ Relevé enregistré — alerte envoyée au manager' : '✅ Promos confirmées en place');
     _confAlertes.t = 0;   // le bandeau d'alerte se rafraîchira
   });
-  _conf.mag = ''; _conf.statuts = {}; _conf.com = '';
+  _conf.ens = ''; _conf.statuts = {}; _conf.com = '';
   ouvrirConformite();
 }
 
@@ -11934,7 +11932,7 @@ function ouvrirSuiviConformite(jours) {
   // Dernier statut connu par magasin et par promo
   var der = {};
   _confSuivi.data.forEach(function(l) {
-    var k = l.enseigne + '|' + l.magasin + '|' + l.promoId;
+    var k = l.enseigne + '|' + (l.secteur || '') + '|' + l.promoId;
     if (!der[k] || l.date > der[k].date) der[k] = l;
   });
   var parPromo = {}, parSect = {};
@@ -11942,10 +11940,10 @@ function ouvrirSuiviConformite(jours) {
     var l = der[k];
     var g = parPromo[l.promoId] || (parPromo[l.promoId] = { nom: l.promoName, n: 0, ok: 0, partiel: 0, absent: 0, na: 0, absents: [] });
     g.n++; g[l.statut] = (g[l.statut] || 0) + 1;
-    if (l.statut === 'absent') g.absents.push(l.magasin + (l.secteur ? ' (' + l.secteur + ')' : ''));
+    if (l.statut === 'absent') g.absents.push(l.enseigne + (l.secteur ? ' (' + l.secteur + ')' : ''));
     var sk = l.secteur || '—';
     var t = parSect[sk] || (parSect[sk] = { n: 0, ok: 0, na: 0, mags: {} });
-    t.n++; if (l.statut === 'ok') t.ok++; if (l.statut === 'na') t.na++; t.mags[l.enseigne + '|' + l.magasin] = 1;
+    t.n++; if (l.statut === 'ok') t.ok++; if (l.statut === 'na') t.na++; t.mags[l.enseigne] = 1;
   });
   var taux = function(ok, n, na) { var b = n - na; return b > 0 ? Math.round(ok / b * 100) : null; };
   var couleur = function(t) { return t === null ? 'var(--dark-gray)' : t >= 80 ? '#2E7D32' : t >= 50 ? '#E6A100' : '#C62828'; };
@@ -11960,7 +11958,7 @@ function ouvrirSuiviConformite(jours) {
     h += '<div style="padding:10px 0;border-top:1px solid var(--beige)">' +
       '<div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:13px;font-weight:700">' + escHtml(g.nom) + '</span>' +
       '<span style="font-size:14px;font-weight:700;color:' + couleur(t) + '">' + (t === null ? '—' : t + ' %') + '</span></div>' +
-      '<div style="font-size:12px;color:var(--dark-gray);margin-top:2px">' + g.n + ' magasin' + (g.n > 1 ? 's' : '') + ' · ✅ ' + g.ok + ' · 🟡 ' + g.partiel + ' · ❌ ' + g.absent + (g.na ? ' · ⛔ ' + g.na : '') + '</div>' +
+      '<div style="font-size:12px;color:var(--dark-gray);margin-top:2px">' + g.n + ' relevé' + (g.n > 1 ? 's' : '') + ' · ✅ ' + g.ok + ' · 🟡 ' + g.partiel + ' · ❌ ' + g.absent + (g.na ? ' · ⛔ ' + g.na : '') + '</div>' +
       (g.absents.length ? '<div style="font-size:12px;color:#C62828;margin-top:4px">Absente : ' + escHtml(g.absents.slice(0, 10).join(', ')) + (g.absents.length > 10 ? '…' : '') + '</div>' : '') +
       '</div>';
   });
@@ -11969,10 +11967,10 @@ function ouvrirSuiviConformite(jours) {
     h += '<div class="section-label" style="margin-top:14px">Par secteur</div>' + sects.map(function(k) {
       var s = parSect[k], t = taux(s.ok, s.n, s.na);
       return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px solid var(--beige)"><span>' + escHtml(k) +
-        ' <span style="color:var(--dark-gray);font-size:12px">(' + Object.keys(s.mags).length + ' mag.)</span></span><b style="color:' + couleur(t) + '">' + (t === null ? '—' : t + ' %') + '</b></div>';
+        ' <span style="color:var(--dark-gray);font-size:12px">(' + Object.keys(s.mags).length + ' ens.)</span></span><b style="color:' + couleur(t) + '">' + (t === null ? '—' : t + ' %') + '</b></div>';
     }).join('');
   }
-  h += '<div style="font-size:11px;color:var(--dark-gray);margin:12px 0 8px">Dernier relevé connu par magasin et par promo. Taux = en place / (relevés − N/A).</div>' +
+  h += '<div style="font-size:11px;color:var(--dark-gray);margin:12px 0 8px">Dernier relevé connu par enseigne, secteur et promo. Taux = en place / (relevés − N/A).</div>' +
     '<button class="btn btn-secondary mb-8" onclick="ouvrirConformite()">← Nouveau relevé</button>' +
     '<button class="btn btn-secondary" onclick="fermerModalParam()">Fermer</button>';
   ouvrirModalParam(h);
@@ -11989,7 +11987,7 @@ function confCleAlerte(l) { return l.enseigne + '|' + l.magasin + '|' + l.promoI
 function confListeAlertes() {
   var der = {}, vus = confVus();
   (_confAlertes.lignes || []).forEach(function(l) {
-    var k = l.enseigne + '|' + l.magasin + '|' + l.promoId;
+    var k = l.enseigne + '|' + (l.secteur || '') + '|' + l.promoId;
     if (!der[k] || l.date > der[k].date) der[k] = l;
   });
   return Object.keys(der).map(function(k) { return der[k]; }).filter(function(l) {
@@ -12015,7 +12013,7 @@ function renderConfAlertes() {
   }
   var l = confListeAlertes();
   if (!l.length) { wrap.innerHTML = ''; return; }
-  var resume = l.slice(0, 2).map(function(a) { return a.promoName + ' ' + (a.statut === 'absent' ? 'absente' : 'partielle') + ' — ' + a.magasin; }).join(' · ');
+  var resume = l.slice(0, 2).map(function(a) { return a.promoName + ' ' + (a.statut === 'absent' ? 'absente' : 'partielle') + ' — ' + a.enseigne + (a.secteur ? ' (' + a.secteur + ')' : ''); }).join(' · ');
   wrap.innerHTML = '<div class="pending-banner" style="cursor:pointer;border-left:4px solid #C62828" onclick="ouvrirConfAlertes()">' +
     '<div style="font-size:20px;flex-shrink:0">⚠️</div><div style="flex:1;min-width:0">' +
     '<div class="pending-banner-title">' + l.length + ' promo' + (l.length > 1 ? 's' : '') + ' non conforme' + (l.length > 1 ? 's' : '') + ' en magasin</div>' +
@@ -12030,7 +12028,7 @@ function ouvrirConfAlertes() {
       return '<div style="padding:10px 0;border-top:1px solid var(--beige)">' +
         '<div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:13px;font-weight:700">' + escHtml(a.promoName) + '</span>' +
         '<span style="font-size:12px;font-weight:700;color:' + (a.statut === 'absent' ? '#C62828' : '#E6A100') + '">' + (a.statut === 'absent' ? '❌ Absente' : '🟡 Partielle') + '</span></div>' +
-        '<div style="font-size:12px;color:var(--dark-gray);margin-top:2px">' + escHtml(a.enseigne + ' · ' + a.magasin + (a.secteur ? ' (' + a.secteur + ')' : '')) + '</div>' +
+        '<div style="font-size:12px;color:var(--dark-gray);margin-top:2px">' + escHtml(a.enseigne + (a.magasin && a.magasin !== CONF_TOUTE ? ' · ' + a.magasin : '') + (a.secteur ? ' (' + a.secteur + ')' : '')) + '</div>' +
         '<div style="font-size:12px;color:var(--dark-gray)">' + escHtml((a.cds || '') + ' · ' + formatDateFR(String(a.jour || a.date).slice(0, 10))) + '</div>' +
         (a.commentaire ? '<div style="font-size:12px;margin-top:4px;white-space:pre-wrap">💬 ' + escHtml(a.commentaire) + '</div>' : '') +
         '<button class="btn btn-secondary btn-sm" style="width:auto;margin-top:6px" onclick="confMarquerVu(' + i + ')">✓ Vu</button></div>';
@@ -13736,7 +13734,7 @@ function jeuBandeau() {
     'background:linear-gradient(135deg,' + (fait ? '#4A5060,#2E3139' : '#D4483B,#8E1B30') + ')';
   b.onclick = function() { goTo('screen-jeu'); };
   b.innerHTML = '<span style="font-size:28px">' + (fait ? '&#9989;' : '&#127919;') + '</span><div style="flex:1">' +
-    '<div style="font-weight:700;font-size:14px">Jeu de la semaine</div>' +
+    '<div style="font-weight:700;font-size:14px">Jeu de la semaine' + jeuMesBadges(et) + '</div>' +
     '<div style="font-size:12px;opacity:0.85">' + (fait ? 'Joué : ' + et.moi.bonnes + '/' + et.moi.total + ' — voir le classement' : 'À toi de jouer ! 15 s par question') + '</div></div>' +
     '<span style="font-size:18px;opacity:0.8">›</span>';
   c.insertBefore(b, c.firstChild);
@@ -13807,6 +13805,7 @@ function jeuAccueil(et, fin) {
       (bonus ? '<br>&#128293; Série en cours : <b>+' + bonus + ' %</b> si tu joues cette semaine' : '') + '</div></div>' +
       '<button class="btn btn-primary" style="margin:10px 0 18px" onclick="jeuLancer(this)">C\'est parti !</button>';
   }
+  if (et.champions) h += jeuChampions(et.champions);
   if (et.gagnantPrec) h += '<div style="background:var(--beige);border-radius:12px;padding:10px 14px;font-size:13px;margin-bottom:14px">&#127942; Semaine dernière : <b>' + escHtml(et.gagnantPrec.secteur) + '</b> (' + et.gagnantPrec.points + ' pts)</div>';
   h += jeuTableau('Classement de la semaine', et.semaineCls) + jeuTableau('Classement du mois', et.moisCls);
   h += '<button class="btn btn-secondary" style="margin-top:14px" onclick="jeuHistorique()">&#128220; Mes réponses</button>';
@@ -13814,6 +13813,38 @@ function jeuAccueil(et, fin) {
     h += '<button class="btn btn-secondary" style="margin-top:8px" onclick="jeuStats(\'semaine\')">&#128202; Statistiques des questions</button>';
   h += '<button class="btn btn-ghost" style="margin-top:8px" onclick="goTo(\'screen-home\')">Retour à l\'accueil</button>';
   z.innerHTML = h;
+}
+
+// v19.24 : champions de la semaine et du mois (badges)
+var JEU_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+function jeuBadge(c, mois) {
+  if (!c) return '';
+  var n = Number(c.titres) || 1;
+  if (mois) return '&#128081;' + (n > 1 ? new Array(Math.min(n - 1, 5) + 1).join('&#11088;') : '');
+  return '&#127942;' + (n > 1 ? '×' + n : '');
+}
+function jeuChampions(ch) {
+  if (!ch || (!ch.mois && !ch.semaine)) return '';
+  var moi = currentAccount ? String(currentAccount.id) : '';
+  var ligne = function(c, mois) {
+    if (!c) return '';
+    var m = /^(\d{4})-(\d{2})/.exec(String(c.periode || ''));
+    var nm = m ? JEU_MOIS[Number(m[2]) - 1] : '';
+    var lib = mois ? (nm ? 'Champion ' + (/^[aeiouy]/.test(nm) ? 'd\'' : 'de ') + nm : 'Champion du mois dernier') : 'Champion de la semaine dernière';
+    var suite = Number(c.titres) > 1 ? ' · ' + c.titres + (mois ? ' mois' : ' semaines') + ' d\'affilée' : '';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0">' +
+      '<span style="font-size:20px;white-space:nowrap">' + jeuBadge(c, mois) + '</span>' +
+      '<div style="flex:1;min-width:0"><div style="font-weight:700">' + escHtml(c.nom || 'CDS') + (String(c.compteId) === moi ? ' (toi !)' : '') + '</div>' +
+      '<div style="font-size:12px;color:var(--dark-gray)">' + lib + (c.secteur ? ' · ' + escHtml(c.secteur) : '') + ' · ' + (Number(c.points) || 0) + ' pts' + suite + '</div></div></div>';
+  };
+  return '<div style="background:var(--beige);border-radius:12px;padding:6px 14px;margin-bottom:14px">' + ligne(ch.mois, true) + ligne(ch.semaine, false) + '</div>';
+}
+function jeuMesBadges(et) {
+  var ch = et && et.champions, moi = currentAccount ? String(currentAccount.id) : '', b = '';
+  if (!ch || !moi) return '';
+  if (ch.mois && String(ch.mois.compteId) === moi) b += jeuBadge(ch.mois, true) + ' ';
+  if (ch.semaine && String(ch.semaine.compteId) === moi) b += jeuBadge(ch.semaine, false);
+  return b ? ' <span style="font-weight:400">' + b + '</span>' : '';
 }
 
 function jeuTableau(titre, cls) {
@@ -16284,5 +16315,207 @@ function migrationAccueil() {
 setTimeout(function() { if (!navigator.onLine) return; ['libs/pdf.min.js', 'libs/pdf.worker.min.js', 'libs/xlsx.bundle.js'].forEach(function(u) { fetch(u).catch(function() {}); }); }, 10000);
 </script>
 
+<!-- ═══════ v19.25 : DOCUMENTS SERVIS PAR L'APPLI (sans compte Google, sans lien Drive) ═══════ -->
+<script>
+// Récupère un document via l'Apps Script (session de l'appli) : jamais de lien Drive
+var _fichiersApp = {};
+function fichierAppBlob(id, nom) {
+  if (_fichiersApp[id]) return Promise.resolve(_fichiersApp[id]);
+  return apiPostJSON({ action: 'getCommFichier', id: id }).then(function(res) {
+    if (!res || res.status !== 'ok') throw new Error((res && res.message) || 'indisponible');
+    var bin = atob(res.data), a = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    var f = { nom: res.nom || nom || 'document.pdf', blob: new Blob([a], { type: res.mime || 'application/pdf' }) };
+    _fichiersApp[id] = f;
+    return f;
+  });
+}
+function appliInstallee() {
+  try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { return false; }
+}
+function ouvrirFichierApp(id, nom, telecharger) {
+  if (!id) { showToast('❌ Fichier introuvable'); return; }
+  if (!navigator.onLine) { showToast('⚠️ Connexion requise pour ouvrir le document'); return; }
+  // Fenêtre ouverte tout de suite (sinon bloquée), remplie quand le fichier arrive
+  var w = (!telecharger && !appliInstallee()) ? window.open('', '_blank') : null;
+  if (w) { try { w.document.write('<p style="font-family:sans-serif;padding:20px">Chargement du document…</p>'); } catch (e) {} }
+  showToast('⏳ ' + (nom || 'Document') + '…');
+  fichierAppBlob(id, nom).then(function(f) {
+    if (telecharger || (!w && appliInstallee())) { telechargerBlob(f.blob, f.nom); showToast('⬇️ ' + f.nom); return; }
+    var url = URL.createObjectURL(f.blob);
+    if (w) w.location.href = url;
+    else { var a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(function() { URL.revokeObjectURL(url); }, 300000);
+  }).catch(function(e) {
+    // Ancien document resté hors du Drive de l'appli : ancien lien en secours (à redéposer dans l'appli)
+    if (/introuvable|non autoris/i.test(e.message)) {
+      var lien = telecharger ? 'https://drive.google.com/uc?export=download&id=' + id : 'https://drive.google.com/file/d/' + id + '/view';
+      if (w) w.location.href = lien; else _woAvant.call(window, lien, '_blank');
+      return;
+    }
+    if (w) { try { w.close(); } catch (x) {} }
+    showToast('❌ ' + (nom || 'Fichier') + ' : ' + e.message);
+  });
+}
+
+// Tous les liens Drive affichés dans l'appli passent par l'appli
+document.addEventListener('click', function(ev) {
+  var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+  if (!a) return;
+  var m = /(?:drive\.google\.com\/(?:file\/d\/|uc\?(?:[^#]*&)?id=|open\?id=)|docs\.google\.com\/document\/d\/)([\w-]{25,})/.exec(a.getAttribute('href') || '');
+  if (!m) return;
+  ev.preventDefault(); ev.stopPropagation();
+  var nom = (a.textContent || '').replace(/^[^\w]*|↗/g, '').trim();
+  ouvrirFichierApp(m[1], nom, a.hasAttribute('download'));
+}, true);
+
+// Rapports (Google Docs) et fichiers Drive ouverts par le code : servis en PDF par l'appli
+var _woAvant = window.open;
+window.open = function(url) {
+  var m = /(?:docs\.google\.com\/document\/d\/|drive\.google\.com\/(?:file\/d\/|uc\?(?:[^#]*&)?id=|open\?id=))([\w-]{25,})/.exec(String(url || ''));
+  if (m) { ouvrirFichierApp(m[1], /docs\.google/.test(url) ? 'Rapport' : '', false); return null; }
+  return _woAvant.apply(window, arguments);
+};
+
+// PDF de formation et catalogues PLV
+openFormationPdf = function(id) {
+  var f = _getFormation(id);
+  if (!f || !f.fileId) { showToast('❌ Fichier introuvable'); return; }
+  ouvrirFichierApp(f.fileId, f.fileName || f.title, false);
+};
+downloadFormationPdf = function(id) {
+  var f = _getFormation(id);
+  if (!f || !f.fileId) { showToast('❌ Fichier introuvable'); return; }
+  ouvrirFichierApp(f.fileId, f.fileName || ((f.title || 'document') + '.pdf'), true);
+};
+plvOpenCat = function(cat) {
+  var cf = plvData().catalogues[cat];
+  if (!cf || !cf.fileId) { showToast('📖 Pas encore de catalogue ' + cat); return; }
+  ouvrirFichierApp(cf.fileId, cf.fileName || ('Catalogue ' + cat + '.pdf'), false);
+};
+
+// Images des communications : pas de lien Drive dans les mails
+contenuITOTexte = function(txt) {
+  return blocsITO(txt).map(function(b) {
+    if (!b.tab) return b.lignes.map(function(l) { return COMM_IMG.test(l) ? '' : l; }).join('\n');
+    return b.lignes.map(function(l) {
+      return l.split('\t').map(function(c) { return c.trim(); }).filter(function(c, i, a) {
+        return c || a.slice(i).some(function(x) { return x.trim(); });
+      }).join(' | ');
+    }).join('\n');
+  }).join('\n').replace(/\n{3,}/g, '\n\n');
+};
+
+// ── Mail avec les documents en vraies pièces jointes ──
+// 1) partage du téléphone / de Windows (Outlook, Mail…) avec les fichiers joints
+// 2) sinon : les fichiers sont téléchargés puis le mail s'ouvre, il reste à les glisser dedans
+var _mailPj = null;
+function mailAvecFichiers(o) {
+  o.emails = o.emails || [];
+  _mailPj = { o: o, fichiers: null };
+  var share = commPartageFichiersPossible();
+  ouvrirModalParam('<div style="font-size:15px;font-weight:700;margin-bottom:6px">' + escHtml(o.sujet) + '</div>' +
+    '<div style="font-size:12px;color:var(--dark-gray);margin-bottom:12px">' + o.fichiers.length + ' pièce(s) jointe(s)' +
+      (o.emails.length ? ' · ' + o.emails.length + ' destinataire(s) — les adresses seront copiées : collez-les en CCI' : '') + '</div>' +
+    (share ? '<button class="btn btn-primary mb-8 mailpj-btn" onclick="mailPjPartager()" disabled>📎 Mail avec les fichiers joints</button>' : '') +
+    '<button class="btn ' + (share ? 'btn-secondary' : 'btn-primary') + ' mb-8 mailpj-btn" onclick="mailPjTelecharger()" disabled>⬇️ Télécharger les fichiers et ouvrir le mail</button>' +
+    '<div id="mailpj-etat" style="font-size:12px;color:var(--dark-gray);line-height:1.5;margin:-2px 0 12px">⏳ Préparation des fichiers…</div>' +
+    '<button class="btn btn-secondary" onclick="_mailPj=null;fermerModalParam()">Annuler</button>');
+  var etat = function(t) { var e = document.getElementById('mailpj-etat'); if (e) e.textContent = t; };
+  var out = [], suite = Promise.resolve();
+  o.fichiers.forEach(function(f, k) {
+    suite = suite.then(function() {
+      etat('⏳ Préparation ' + (k + 1) + '/' + o.fichiers.length + ' : ' + (f.nom || ''));
+      return fichierAppBlob(f.id, f.nom).then(function(x) { out.push(x); });
+    });
+  });
+  suite.then(function() {
+    if (!_mailPj || _mailPj.o !== o) return;
+    var vus = {};
+    _mailPj.fichiers = out.map(function(x) {
+      var n = String(x.nom).replace(/[\\/:*?"<>|]/g, '_'), base = n.replace(/(\.\w+)$/, ''), ext = (n.match(/\.\w+$/) || [''])[0], i = 2;
+      while (vus[n.toLowerCase()]) n = base + ' (' + (i++) + ')' + ext;
+      vus[n.toLowerCase()] = true;
+      return { nom: n, blob: x.blob };
+    });
+    [].forEach.call(document.querySelectorAll('.mailpj-btn'), function(b) { b.disabled = false; });
+    etat('✅ Fichiers prêts.');
+  }).catch(function(err) { etat('⚠️ ' + err.message + ' — prévenez le manager.'); });
+}
+function mailPjCopierAdresses(o) {
+  if (o.emails.length) { try { navigator.clipboard.writeText(o.emails.join('; ')); } catch (e) {} }
+}
+function mailPjPartager() {
+  var P0 = _mailPj; if (!P0 || !P0.fichiers) { showToast('⏳ Fichiers en préparation'); return; }
+  mailPjCopierAdresses(P0.o);
+  var donnees = { title: P0.o.sujet, text: P0.o.texte,
+    files: P0.fichiers.map(function(f) { return new File([f.blob], f.nom, { type: f.blob.type || 'application/pdf' }); }) };
+  if (!navigator.canShare || !navigator.canShare(donnees)) { mailPjTelecharger(); return; }
+  navigator.share(donnees).then(function() {
+    fermerModalParam(); _mailPj = null;
+    if (P0.o.emails.length) showToast('📋 Adresses copiées : collez-les en CCI');
+  }).catch(function(e) { if (e && e.name !== 'AbortError') showToast('⚠️ Partage impossible : ' + e.message); });
+}
+function mailPjTelecharger() {
+  var P0 = _mailPj; if (!P0 || !P0.fichiers) { showToast('⏳ Fichiers en préparation'); return; }
+  var o = P0.o;
+  mailPjCopierAdresses(o);
+  P0.fichiers.forEach(function(f) { telechargerBlob(f.blob, f.nom); });
+  var to = encodeURIComponent(o.emails.join(',')), sujet = encodeURIComponent(o.sujet),
+      corps = encodeURIComponent(o.texte + '\n\n(' + P0.fichiers.length + ' pièce(s) jointe(s))');
+  fermerModalParam(); _mailPj = null;
+  if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    setTimeout(function() { window.location.href = 'mailto:' + decodeURIComponent(to) + '?subject=' + sujet + '&body=' + corps; }, 800);
+  } else {
+    window.open('https://outlook.office365.com/mail/deeplink/compose?' + (o.emails.length ? 'to=' + to + '&' : '') + 'subject=' + sujet + '&body=' + corps, '_blank');
+  }
+  showToast('📎 Glissez les fichiers téléchargés dans le mail' + (o.emails.length ? ' · adresses en CCI' : ''));
+}
+
+// Communications : pièces jointes réelles (plus jamais de liens)
+proposerEnvoiComm = function(o, emails, sujet, texteLiens, texteSansLiens, ouvrirMailClassique) {
+  if (!(o.pieces || []).length) { ouvrirMailClassique(); return; }
+  mailAvecFichiers({ emails: emails, sujet: sujet, texte: texteSansLiens, fichiers: o.pieces });
+};
+
+// ILV d'une promo
+envoyerIlv = function(liste, sujet, texte) {
+  if (!liste.length) return;
+  mailAvecFichiers({ emails: [], sujet: sujet, texte: texte + 'Cordialement,', fichiers: liste });
+};
+
+// Mail des promos d'une enseigne : ILV en pièces jointes
+envoyerMailPromos = function() {
+  var ens = document.getElementById('mail-promos-enseigne').value;
+  if (!ens) { showToast('⚠️ Choisissez une enseigne'); return; }
+  var promos = getMailPromosFiltered();
+  if (!promos.length) { showToast('⚠️ Aucune promo à envoyer'); return; }
+  var groupes = {}, fichiers = [];
+  promos.forEach(function(p) { var c = p.category || 'Autres'; (groupes[c] = groupes[c] || []).push(p); });
+  var texte = 'Bonjour,\n\nVoici les prochaines promotions sur nos produits :\n\n';
+  Object.keys(groupes).forEach(function(cat) {
+    texte += cat + ' :\n';
+    groupes[cat].forEach(function(p) {
+      texte += p.name + (p.price ? ' à ' + p.price + '€' : '') + ' (Du ' + fmtPromoDate(p.start) + ' au ' + fmtPromoDate(p.end) + ')\n';
+      pdfsPromo(p).forEach(function(f) { texte += '   ILV ' + f.nom + ' (en pièce jointe)\n'; fichiers.push(f); });
+    });
+    texte += '\n';
+  });
+  texte += 'Cordialement,';
+  var emails = [];
+  (db.pdvList || []).filter(function(p) { return p.enseigne === ens; }).forEach(function(p) { emailsPDV(p).forEach(function(e) { if (emails.indexOf(e) === -1) emails.push(e); }); });
+  var sujet = P('sujetPromos') + ' — ' + ens;
+  fermerMailPromosModal();
+  if (fichiers.length) { mailAvecFichiers({ emails: emails, sujet: sujet, texte: texte, fichiers: fichiers }); return; }
+  var bcc = encodeURIComponent(emails.join(',')), s = encodeURIComponent(sujet), b = encodeURIComponent(texte);
+  if (/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+    window.location.href = 'mailto:' + emails.join(',') + '?subject=' + s + '&body=' + b;
+    showToast('💡 Pensez à déplacer les adresses en CCI');
+  } else {
+    window.open('https://outlook.office365.com/mail/deeplink/compose?' + (emails.length ? 'to=' + bcc + '&' : '') + 'subject=' + s + '&body=' + b, '_blank');
+    showToast('💡 Pensez à déplacer les adresses en CCI dans Outlook');
+  }
+};
+</script>
 </body>
 </html>
